@@ -5,7 +5,27 @@ from groq import Groq
 st.set_page_config(page_title="Review Moderation Tool", page_icon="🛡️")
 st.title("Review Moderation Tool")
 
-review_text = st.text_area("Enter Customer Review:", height=150)
+api_key = os.environ.get("GROQ_API_KEY")
+client = Groq(api_key=api_key) if api_key else None
+
+# Fixed default model in background
+DEFAULT_MODEL = "qwen/qwen3.8-27b"
+
+# Initialize Session State for input clearing
+if "review_input" not in st.session_state:
+    st.session_state.review_input = ""
+
+def reset_field():
+    st.session_state.review_input = ""
+
+review_text = st.text_area("Enter Customer Review:", key="review_input", height=150)
+
+# Layout for Buttons
+col1, col2 = st.columns([1, 5])
+with col1:
+    evaluate_btn = st.button("Evaluate Review", type="primary")
+with col2:
+    st.button("Reset", on_click=reset_field)
 
 GUIDELINES = """
 EVALUATION CRITERIA FOR PRODUCT REVIEWS:
@@ -41,44 +61,45 @@ EVALUATION CRITERIA FOR PRODUCT REVIEWS:
    - It is a negative or positive personal usage experience with the item.
 """
 
-if st.button("Evaluate Review"):
+if evaluate_btn:
     if review_text.strip():
-        try:
-            client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+        if not api_key:
+            st.error("GROQ_API_KEY environment variable is missing.")
+        else:
+            try:
+                prompt = f"""
+                You are an automated compliance officer for an e-commerce platform. 
+                Evaluate the following customer review based strictly on the provided Product Review Guidelines.
 
-            prompt = f"""
-            You are an automated compliance officer for an e-commerce platform. 
-            Evaluate the following customer review based strictly on the provided Product Review Guidelines.
+                Guidelines:
+                {GUIDELINES}
 
-            Guidelines:
-            {GUIDELINES}
+                Customer Review to evaluate: "{review_text}"
 
-            Customer Review to evaluate: "{review_text}"
+                OUTPUT INSTRUCTIONS:
+                - Line 1 MUST start strictly with either:
+                  ✅ Allowed — it should not be removed.
+                  OR
+                  ❌ Not allowed — the review should be removed.
+                
+                - Line 2 MUST provide a brief, clear explanation in English citing the specific guideline section.
+                """
 
-            OUTPUT INSTRUCTIONS:
-            - Line 1 MUST start strictly with either:
-              ✅ Allowed — it should not be removed.
-              OR
-              ❌ Not allowed — the review should be removed.
-            
-            - Line 2 MUST provide a brief, clear explanation in Arabic citing the specific guideline section (e.g., "السبب: التقييم يركز على الشحن والتوصيل بدلا من خامة المنتج").
-            """
+                response = client.chat.completions.create(
+                    model=DEFAULT_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.1
+                )
 
-            response = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.1
-            )
+                result = response.choices[0].message.content
 
-            result = response.choices[0].message.content
+                st.markdown("### Result:")
+                if "Allowed — it should not be removed" in result:
+                    st.success(result)
+                else:
+                    st.error(result)
 
-            st.markdown("### Result:")
-            if "Allowed — it should not be removed" in result:
-                st.success(result)
-            else:
-                st.error(result)
-
-        except Exception as e:
-            st.error(f"Error: {e}")
+            except Exception as e:
+                st.error(f"Error: {e}")
     else:
         st.warning("Please enter a review first.")
