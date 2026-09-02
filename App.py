@@ -102,20 +102,25 @@ if evaluate_btn:
 
                 Customer Review to evaluate: "{review_text}"
 
-                OUTPUT REQUIREMENTS:
-                Structure the output strictly into TWO separate blocks (English First, then Arabic Second). Follow this exact template:
+                OUTPUT FORMAT RULES:
+                You MUST format the output line by line using standard Markdown headings and bullet points.
+                Ensure each element is strictly on a NEW LINE.
 
-                --- ENGLISH RESULT ---
-                Decision: [Must start with '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
-                Main Guideline Section: [Specify Section Number & Title, e.g., '2. Seller, Order, Shipping, or Packaging Feedback']
-                Specific Sub-rule: [Specify exact Sub-rule, e.g., 'Seller performance or reputation']
-                Detailed Explanation: [Brief clear explanation in English]
+                Follow this exact template structure:
 
-                --- النتيجة بالعربية ---
-                القرار النهائي: [يجب أن يبدأ بـ '✅ مسموح بها — لا يجب إزالتها' أو '❌ غير مسموح بها — يجب إزالة المراجعة']
-                قسم الإرشاد الرئيسي: [تحديد رقم وعنوان القسم بالكامل بالعربية]
-                النقطة الفرعية المحددة: [تحديد النقطة الفرعية بالعربية]
-                التفسير التفصيلي: [توضيح مختصر وواضح بالعربية]
+                ### ENGLISH RESULT
+                * **Decision:** [Must be either '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
+                * **Main Guideline Section:** [Specify Section Number & Title, e.g., '2. Seller, Order, Shipping, or Packaging Feedback']
+                * **Specific Sub-rule:** [Specify exact Sub-rule, e.g., 'Seller performance or reputation']
+                * **Detailed Explanation:** [Brief clear explanation in English]
+
+                ---
+
+                ### النتيجة بالعربية
+                * **القرار النهائي:** [يجب أن يكون '✅ مسموح بها — لا يجب إزالتها' أو '❌ غير مسموح بها — يجب إزالة المراجعة']
+                * **قسم الإرشاد الرئيسي:** [رقم وعنوان القسم بالعربية، مثال: '2. ملاحظات البائع أو الطلب أو الشحن']
+                * **النقطة الفرعية المحددة:** [النقطة الفرعية بالعربية، مثال: 'أداء البائع أو سمعته']
+                * **التفسير التفصيلي:** [توضيح مختصر وواضح بالعربية]
                 """
 
                 response = client.chat.completions.create(
@@ -128,11 +133,8 @@ if evaluate_btn:
 
                 st.markdown("### Result / النتيجة:")
                 
-                # Display status container based on result
-                if "Allowed" in result or "مسموح بها" in result:
-                    st.success(result)
-                else:
-                    st.error(result)
+                # Display output using markdown for clean formatting and line breaks
+                st.markdown(result)
 
                 # Fixed Reference Link at the bottom
                 st.markdown("---")
