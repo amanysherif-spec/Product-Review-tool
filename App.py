@@ -4,7 +4,7 @@ from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
 
-# CSS لإخفاء عناصر التحكم وشارات Streamlit وتعطيل النقر عليها
+# CSS لإخفاء كافة عناصر التحكم وشارات Streamlit وتعطيل النقر عليها
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -94,7 +94,7 @@ if evaluate_btn:
         else:
             try:
                 prompt = f"""
-                You are an automated compliance officer for an e-commerce platform.
+                You are an automated compliance officer for noon evaluating product reviews.
                 Evaluate the following customer review based strictly on the provided Product Review Guidelines.
 
                 Guidelines:
@@ -103,24 +103,14 @@ if evaluate_btn:
                 Customer Review to evaluate: "{review_text}"
 
                 OUTPUT FORMAT RULES:
-                You MUST format the output line by line using standard Markdown headings and bullet points.
-                Ensure each element is strictly on a NEW LINE.
+                Output strictly in English, using Markdown formatting line by line.
 
-                Follow this exact template structure:
+                Follow this exact template:
 
-                ### ENGLISH RESULT
-                * **Decision:** [Must be either '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
+                * **Decision:** [Must be strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
                 * **Main Guideline Section:** [Specify Section Number & Title, e.g., '2. Seller, Order, Shipping, or Packaging Feedback']
                 * **Specific Sub-rule:** [Specify exact Sub-rule, e.g., 'Seller performance or reputation']
-                * **Detailed Explanation:** [Brief clear explanation in English]
-
-                ---
-
-                ### النتيجة بالعربية
-                * **القرار النهائي:** [يجب أن يكون '✅ مسموح بها — لا يجب إزالتها' أو '❌ غير مسموح بها — يجب إزالة المراجعة']
-                * **قسم الإرشاد الرئيسي:** [رقم وعنوان القسم بالعربية، مثال: '2. ملاحظات البائع أو الطلب أو الشحن']
-                * **النقطة الفرعية المحددة:** [النقطة الفرعية بالعربية، مثال: 'أداء البائع أو سمعته']
-                * **التفسير التفصيلي:** [توضيح مختصر وواضح بالعربية]
+                * **Comment:** [Write a professional note addressed directly to the seller (e.g., "Dear Seller, ..."). Explain clearly whether the review can or cannot be removed according to noon's guidelines and detail the specific reason.]
                 """
 
                 response = client.chat.completions.create(
@@ -131,14 +121,12 @@ if evaluate_btn:
 
                 result = response.choices[0].message.content
 
-                st.markdown("### Result / النتيجة:")
-                
-                # Display output using markdown for clean formatting and line breaks
+                st.markdown("### Result:")
                 st.markdown(result)
 
                 # Fixed Reference Link at the bottom
                 st.markdown("---")
-                st.markdown("**Guidelines Reference / مرجع الإرشادات:**")
+                st.markdown("**Guidelines Reference:**")
                 st.markdown("https://help.noon.com/portal/en/kb/articles/noon-community-guidelines")
 
             except Exception as e:
