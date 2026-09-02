@@ -116,7 +116,7 @@ if evaluate_btn:
                 * **Decision:** [Must be strictly '❌ Not allowed — the review should be removed' OR '✅ Allowed — it should not be removed']
                 * **Main Guideline Section:** [Exact section title and number]
                 * **Specific Sub-rule:** [Exact point designation and text]
-                * **Comment:** [Write a polite, professional note addressed directly to the seller starting with 'Dear Seller,'. Explain clearly whether the review can or cannot be removed according to noon's guidelines, explicitly referencing the section and Point number for their clarity.]
+                * **Comment:** [Write a professional note addressed to the seller explaining clearly whether the review can or cannot be removed according to noon's guidelines, referencing the section and Point number. DO NOT write 'Dear Seller,' or any salutation at the start of the comment. Start directly with the explanation text.]
                 """
 
                 response = client.chat.completions.create(
