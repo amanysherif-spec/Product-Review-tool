@@ -3,6 +3,18 @@ import os
 from groq import Groq
 
 st.set_page_config(page_title="Review Moderation Tool", page_icon="🛡️")
+
+# Hide Streamlit header, menu, and toolbar entirely for visitors
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            header {visibility: hidden;}
+            footer {visibility: hidden;}
+            [data-testid="stToolbar"] {visibility: hidden !important;}
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
 st.title("Review Moderation Tool")
 
 api_key = os.environ.get("GROQ_API_KEY")
