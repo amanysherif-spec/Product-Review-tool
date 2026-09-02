@@ -4,7 +4,7 @@ from groq import Groq
 
 st.set_page_config(page_title="Review Moderation Tool", page_icon="🛡️")
 
-# CSS قوي لإخفاء شارة Streamlit السفلية تماماً مع تغطيتها
+# CSS لإخفاء كافة عناصر التحكم وشارات Streamlit العلوية والسفلية عن التيم والزوار
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -16,27 +16,17 @@ hide_st_style = """
             .stAppDeployButton {display: none !important;}
             #stDecoration {display: none !important;}
             
-            /* إخفاء وتغطية شارة Streamlit السفلية */
+            /* إخفاء شريط الأدوات والشارة السفلية نهائياً */
+            div[class*="stAppViewerToolbar"] {display: none !important;}
+            [data-testid="stViewerBadge"] {display: none !important;}
+            .stAppViewerToolbar {display: none !important;}
             div[class*="viewerBadge"] {display: none !important; visibility: hidden !important;}
             div[class*="styles_viewerBadge"] {display: none !important; visibility: hidden !important;}
             a[href*="streamlit.io/cloud"] {display: none !important; visibility: hidden !important;}
             
-            /* إخفاء شريط الإطار السفلي بالكامل */
-            footer {display: none !important; visibility: hidden !important;}
+            /* تنظيف تذييل الصفحة */
             .stAppFooter {display: none !important; visibility: hidden !important;}
-            
-            /* طبقة بيضاء لإخفاء الزاوية اليمنى السفلية تماماً */
-            body::after {
-                content: "";
-                position: fixed;
-                bottom: 0;
-                right: 0;
-                width: 250px;
-                height: 60px;
-                background-color: white;
-                z-index: 999999;
-                pointer-events: none;
-            }
+            footer {display: none !important; visibility: hidden !important;}
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
