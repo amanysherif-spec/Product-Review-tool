@@ -63,7 +63,7 @@ OFFICIAL NOON PRODUCT REVIEW GUIDELINES:
 
 1. Community Guideline Violations
    Point 1: Promotional or advertising content
-   Point 2: Offensive, abusive, or illegal language
+   Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language (e.g., words like "مقرف", profane, disgusting, or insulting terms)
    Point 3: Hate speech or discriminatory remarks
    Point 4: Personal or sensitive information
 
@@ -101,18 +101,21 @@ if evaluate_btn:
 
                 Customer Review to evaluate: "{review_text}"
 
+                CRITICAL INSTRUCTION FOR VULGAR / OFFENSIVE / DISTASTEFUL LANGUAGE:
+                - Any review containing abusive, vulgar, inappropriate, disgusting, or distasteful words (such as "مقرف", abusive expressions, or foul phrasing) MUST be marked as NOT ALLOWED under '1. Community Guideline Violations' - 'Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language'.
+
                 STRICT INSTRUCTIONS FOR SECTION & SUB-RULE TITLES:
-                - For 'Main Guideline Section', use the exact section number and title (e.g., '2. Seller, Order, or Shipping Feedback').
-                - For 'Specific Sub-rule', you MUST explicitly include the point number followed by the exact sub-rule text (e.g., 'Point 1: Seller performance or reputation').
+                - For 'Main Guideline Section', use the exact section number and title (e.g., '1. Community Guideline Violations').
+                - For 'Specific Sub-rule', include the exact Point number and title (e.g., 'Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language').
 
                 OUTPUT FORMAT RULES:
                 Output strictly in English using standard Markdown formatting line by line.
 
                 Follow this exact template:
 
-                * **Decision:** [Must be strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
-                * **Main Guideline Section:** [Exact section title and number, e.g., '2. Seller, Order, or Shipping Feedback']
-                * **Specific Sub-rule:** [Exact point designation and text, e.g., 'Point 1: Seller performance or reputation']
+                * **Decision:** [Must be strictly '❌ Not allowed — the review should be removed' OR '✅ Allowed — it should not be removed']
+                * **Main Guideline Section:** [Exact section title and number]
+                * **Specific Sub-rule:** [Exact point designation and text]
                 * **Comment:** [Write a polite, professional note addressed directly to the seller starting with 'Dear Seller,'. Explain clearly whether the review can or cannot be removed according to noon's guidelines, explicitly referencing the section and Point number for their clarity.]
                 """
 
