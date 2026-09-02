@@ -58,33 +58,29 @@ with col1:
 with col2:
     st.button("Reset", on_click=reset_field)
 
-# Exact Official Guidelines text matching the Help Article
+# OFFICIAL 4 SECTIONS STRICTLY MATCHING THE HELP ARTICLE
 GUIDELINES = """
 OFFICIAL NOON COMMUNITY GUIDELINES FOR PRODUCT REVIEWS:
 
-Section 1: Community Guideline Violations
+1. Community Guideline Violations
 - Point 1: Promotional or advertising content
-- Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language
+- Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language (e.g., words like "مقرف", profane, disgusting, or insulting terms)
 - Point 3: Hate speech or discriminatory remarks
 - Point 4: Personal or sensitive information
 
-Section 2: Seller, Order, or Shipping Feedback
+2. Seller, Order, or Shipping Feedback
 - Point 1: Seller performance or reputation
 - Point 2: Ordering or return experiences
 - Point 3: Shipping, packaging, or delivery speed
 - Point 4: Product damage or missing items
 
-Section 3: Invalid Pricing or Availability Comments
+3. Invalid Pricing or Availability Comments
 - Point 1: Finding the product cheaper elsewhere or competitor pricing
 - Point 2: Stock status, out-of-stock items, or store-level availability
 
-Section 4: Conflicts of Interest & Anti-Manipulation
+4. Conflicts of Interest & Anti-Manipulation
 - Point 1: Written by seller, competitor, employee, friend, family member, or business partner
 - Point 2: Posted in exchange for compensation or financial incentive
-
-Section 5: Product-Focused Reviews
-- Point 1: Focuses strictly on the product itself (quality, performance, specs, value for money)
-- Point 2: Expresses general price-to-value opinions or usage experience
 """
 
 if evaluate_btn:
@@ -95,32 +91,35 @@ if evaluate_btn:
             try:
                 prompt = f"""
                 You are an automated compliance officer for noon evaluating product reviews.
-                Evaluate the customer review based STRICTLY and EXACTLY on the official Product Review Article provided below.
+                Evaluate the customer review based STRICTLY on the official 4-section Product Review Guidelines below.
 
                 Guidelines Article:
                 {GUIDELINES}
 
                 Customer Review: "{review_text}"
 
-                STRICT RULES FOR SECTION AND SUB-RULE CITATIONS:
-                1. You MUST copy the exact text and numbers from the guidelines article above without any modification, addition, or paraphrasing.
-                2. 'Main Guideline Section' must be verbatim (e.g., 'Section 2: Seller, Order, or Shipping Feedback' or 'Section 1: Community Guideline Violations').
-                3. 'Specific Sub-rule' must be verbatim (e.g., 'Point 2: Ordering or return experiences' or 'Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language').
+                STRICT RULES FOR OUTPUT FORMATION:
 
-                CRITICAL INSTRUCTIONS FOR COMMENT FIELD:
-                - Do NOT include any greetings or salutations such as 'Dear Seller,', 'Hi,', or 'Hello'.
-                - Start the Comment immediately with the explanation text.
-                - Explicitly quote the exact Section name and Point number in the explanation so the seller can reference the exact article rule.
+                IF THE REVIEW VIOLATES GUIDELINES (NOT ALLOWED):
+                - Decision: '❌ Not allowed — the review should be removed'
+                - Main Guideline Section: Must strictly use one of the 4 official sections verbatim (e.g., '1. Community Guideline Violations', '2. Seller, Order, or Shipping Feedback', '3. Invalid Pricing or Availability Comments', '4. Conflicts of Interest & Anti-Manipulation').
+                - Specific Sub-rule: Must strictly use the exact point verbatim (e.g., 'Point 2: Ordering or return experiences').
 
-                OUTPUT FORMAT RULES:
-                Output strictly in English using standard Markdown formatting line by line.
+                IF THE REVIEW IS COMPLIANT AND VALID (ALLOWED):
+                - Decision: '✅ Allowed — it should not be removed'
+                - Main Guideline Section: 'N/A (Compliant with Product Review Policy)'
+                - Specific Sub-rule: 'N/A (Focuses strictly on the product itself)'
 
-                Follow this exact template:
+                CRITICAL INSTRUCTION FOR COMMENT FIELD:
+                - Do NOT write 'Dear Seller,' or any greeting/salutation.
+                - Start directly with the professional explanation.
 
-                * **Decision:** [Must be strictly '❌ Not allowed — the review should be removed' OR '✅ Allowed — it should not be removed']
-                * **Main Guideline Section:** [Exact Section title and number from article]
-                * **Specific Sub-rule:** [Exact Point designation and text from article]
-                * **Comment:** [Explanation text starting directly without any salutation or 'Dear Seller,']
+                OUTPUT TEMPLATE:
+
+                * **Decision:** [Decision status]
+                * **Main Guideline Section:** [Main Section text]
+                * **Specific Sub-rule:** [Sub-rule text]
+                * **Comment:** [Explanation text starting directly without greetings]
                 """
 
                 response = client.chat.completions.create(
