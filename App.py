@@ -62,28 +62,28 @@ GUIDELINES = """
 OFFICIAL NOON PRODUCT REVIEW GUIDELINES:
 
 1. Community Guideline Violations
-   - Promotional or advertising content
-   - Offensive, abusive, or illegal language
-   - Hate speech or discriminatory remarks
-   - Personal or sensitive information
+   Point 1: Promotional or advertising content
+   Point 2: Offensive, abusive, or illegal language
+   Point 3: Hate speech or discriminatory remarks
+   Point 4: Personal or sensitive information
 
 2. Seller, Order, or Shipping Feedback
-   - Seller performance or reputation
-   - Ordering or return experiences
-   - Shipping, packaging, or delivery speed
-   - Product damage or missing items
+   Point 1: Seller performance or reputation
+   Point 2: Ordering or return experiences
+   Point 3: Shipping, packaging, or delivery speed
+   Point 4: Product damage or missing items
 
 3. Invalid Pricing or Availability Comments
-   - Finding the product cheaper elsewhere or competitor pricing
-   - Stock status, out-of-stock items, or store-level availability
+   Point 1: Finding the product cheaper elsewhere or competitor pricing
+   Point 2: Stock status, out-of-stock items, or store-level availability
 
 4. Conflicts of Interest & Anti-Manipulation
-   - Written by seller, competitor, employee, friend, family member, or business partner
-   - Posted in exchange for compensation or financial incentive
+   Point 1: Written by seller, competitor, employee, friend, family member, or business partner
+   Point 2: Posted in exchange for compensation or financial incentive
 
 5. Product-Focused Reviews (Allowed)
-   - Focuses strictly on the product itself (quality, performance, specs, value for money)
-   - Expresses general price-to-value opinions or usage experience
+   Point 1: Focuses strictly on the product itself (quality, performance, specs, value for money)
+   Point 2: Expresses general price-to-value opinions or usage experience
 """
 
 if evaluate_btn:
@@ -102,7 +102,8 @@ if evaluate_btn:
                 Customer Review to evaluate: "{review_text}"
 
                 STRICT INSTRUCTIONS FOR SECTION & SUB-RULE TITLES:
-                - You MUST copy the exact text and numbers from the official guidelines above for 'Main Guideline Section' and 'Specific Sub-rule'. Do NOT summarize, rephrase, or alter any words in these two fields.
+                - For 'Main Guideline Section', use the exact section number and title (e.g., '2. Seller, Order, or Shipping Feedback').
+                - For 'Specific Sub-rule', you MUST explicitly include the point number followed by the exact sub-rule text (e.g., 'Point 1: Seller performance or reputation').
 
                 OUTPUT FORMAT RULES:
                 Output strictly in English using standard Markdown formatting line by line.
@@ -110,9 +111,9 @@ if evaluate_btn:
                 Follow this exact template:
 
                 * **Decision:** [Must be strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
-                * **Main Guideline Section:** [Exact section title and number as written in the guidelines, e.g., '2. Seller, Order, or Shipping Feedback']
-                * **Specific Sub-rule:** [Exact bullet point text as written in the guidelines, e.g., 'Seller performance or reputation']
-                * **Comment:** [Write a polite, professional note addressed directly to the seller starting with 'Dear Seller,'. Explain clearly whether the review can or cannot be removed according to noon's guidelines, quoting the exact rule for their reference.]
+                * **Main Guideline Section:** [Exact section title and number, e.g., '2. Seller, Order, or Shipping Feedback']
+                * **Specific Sub-rule:** [Exact point designation and text, e.g., 'Point 1: Seller performance or reputation']
+                * **Comment:** [Write a polite, professional note addressed directly to the seller starting with 'Dear Seller,'. Explain clearly whether the review can or cannot be removed according to noon's guidelines, explicitly referencing the section and Point number for their clarity.]
                 """
 
                 response = client.chat.completions.create(
