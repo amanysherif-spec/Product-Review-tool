@@ -105,8 +105,9 @@ if evaluate_btn:
                 - Any review containing abusive, vulgar, inappropriate, disgusting, or distasteful words (such as "مقرف", abusive expressions, or foul phrasing) MUST be marked as NOT ALLOWED under '1. Community Guideline Violations' - 'Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language'.
 
                 STRICT INSTRUCTIONS FOR SECTION & SUB-RULE TITLES:
-                - For 'Main Guideline Section', use the exact section number and title (e.g., '1. Community Guideline Violations').
-                - For 'Specific Sub-rule', include the exact Point number and title (e.g., 'Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language').
+                - For 'Main Guideline Section', use the exact section number and title as written in the article (e.g., '2. Seller, Order, or Shipping Feedback').
+                - For 'Specific Sub-rule', use the exact point number and text as written in the article (e.g., 'Point 2: Ordering or return experiences').
+                - Do NOT alter, abbreviate, or rephrase the section or sub-rule titles in any way.
 
                 OUTPUT FORMAT RULES:
                 Output strictly in English using standard Markdown formatting line by line.
@@ -114,9 +115,9 @@ if evaluate_btn:
                 Follow this exact template:
 
                 * **Decision:** [Must be strictly '❌ Not allowed — the review should be removed' OR '✅ Allowed — it should not be removed']
-                * **Main Guideline Section:** [Exact section title and number]
-                * **Specific Sub-rule:** [Exact point designation and text]
-                * **Comment:** [Write a professional note addressed to the seller explaining clearly whether the review can or cannot be removed according to noon's guidelines, referencing the section and Point number. DO NOT write 'Dear Seller,' or any salutation at the start of the comment. Start directly with the explanation text.]
+                * **Main Guideline Section:** [Exact section title and number from article]
+                * **Specific Sub-rule:** [Exact point number and text from article]
+                * **Comment:** [Write a professional explanation addressed to the seller detailing whether the review can or cannot be removed according to noon's guidelines, explicitly referencing the exact section and point number. DO NOT write 'Dear Seller,' or any greeting/salutation at the beginning. Start directly with the explanation text.]
                 """
 
                 response = client.chat.completions.create(
