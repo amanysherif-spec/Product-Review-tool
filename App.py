@@ -4,7 +4,7 @@ from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
 
-# CSS لإخفاء كافة عناصر التحكم وشارات Streamlit وتعطيل التفاعل معها
+# CSS لإخفاء عناصر التحكم وشارات Streamlit وتعطيل النقر عليها
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -103,20 +103,19 @@ if evaluate_btn:
                 Customer Review to evaluate: "{review_text}"
 
                 OUTPUT REQUIREMENTS:
-                Provide the evaluation strictly in BOTH English AND Arabic following this structure:
+                Structure the output strictly into TWO separate blocks (English First, then Arabic Second). Follow this exact template:
 
-                Decision / القرار:
-                [Start strictly with either: '✅ Allowed — it should not be removed / مسموح بها — لا يجب إزالتها' OR '❌ Not allowed — the review should be removed / غير مسموح بها — يجب إزالة المراجعة']
+                --- ENGLISH RESULT ---
+                Decision: [Must start with '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
+                Main Guideline Section: [Specify Section Number & Title, e.g., '2. Seller, Order, Shipping, or Packaging Feedback']
+                Specific Sub-rule: [Specify exact Sub-rule, e.g., 'Seller performance or reputation']
+                Detailed Explanation: [Brief clear explanation in English]
 
-                Main Guideline / المرجع الرئيسي:
-                [Specify the main section number and title, e.g., '2. Seller, Order, Shipping, or Packaging Feedback']
-
-                Specific Sub-rule / النقطة الفرعية:
-                [Specify the exact sub-point, e.g., 'Seller performance or reputation']
-
-                Explanation / التوضيح:
-                - English: [Brief clear explanation]
-                - العربية: [توضيح مختصر وواضح بالعربية]
+                --- النتيجة بالعربية ---
+                القرار النهائي: [يجب أن يبدأ بـ '✅ مسموح بها — لا يجب إزالتها' أو '❌ غير مسموح بها — يجب إزالة المراجعة']
+                قسم الإرشاد الرئيسي: [تحديد رقم وعنوان القسم بالكامل بالعربية]
+                النقطة الفرعية المحددة: [تحديد النقطة الفرعية بالعربية]
+                التفسير التفصيلي: [توضيح مختصر وواضح بالعربية]
                 """
 
                 response = client.chat.completions.create(
@@ -127,13 +126,15 @@ if evaluate_btn:
 
                 result = response.choices[0].message.content
 
-                st.markdown("### Result:")
+                st.markdown("### Result / النتيجة:")
+                
+                # Display status container based on result
                 if "Allowed" in result or "مسموح بها" in result:
                     st.success(result)
                 else:
                     st.error(result)
 
-                # Fixed Link at the end of every result
+                # Fixed Reference Link at the bottom
                 st.markdown("---")
                 st.markdown("**Guidelines Reference / مرجع الإرشادات:**")
                 st.markdown("https://help.noon.com/portal/en/kb/articles/noon-community-guidelines")
