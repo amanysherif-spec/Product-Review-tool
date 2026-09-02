@@ -4,7 +4,7 @@ from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
 
-# CSS لإخفاء كافة عناصر التحكم وشارات Streamlit وتعطيل النقر عليها
+# CSS لإخفاء عناصر التحكم وشارات Streamlit وتعطيل النقر عليها
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -59,32 +59,31 @@ with col2:
     st.button("Reset", on_click=reset_field)
 
 GUIDELINES = """
-EVALUATION CRITERIA FOR PRODUCT REVIEWS:
+OFFICIAL NOON PRODUCT REVIEW GUIDELINES:
 
-1. Community Guideline Violations:
-   - Promotional or advertising content.
-   - Offensive, abusive, or illegal language.
-   - Hate speech or discriminatory remarks.
-   - Personal or sensitive information (phone numbers, full names, addresses, emails).
+1. Community Guideline Violations
+   - Promotional or advertising content
+   - Offensive, abusive, or illegal language
+   - Hate speech or discriminatory remarks
+   - Personal or sensitive information
 
-2. Seller, Order, Shipping, or Packaging Feedback:
-   - Seller performance or reputation.
-   - Ordering or return experiences.
-   - Shipping, packaging, or delivery speed.
-   - Product damage or missing items.
+2. Seller, Order, or Shipping Feedback
+   - Seller performance or reputation
+   - Ordering or return experiences
+   - Shipping, packaging, or delivery speed
+   - Product damage or missing items
 
-3. Invalid Pricing or Availability Comments:
-   - Mentions finding the product cheaper elsewhere or competitor pricing.
-   - Complains about stock status, out-of-stock items, or store-level availability.
+3. Invalid Pricing or Availability Comments
+   - Finding the product cheaper elsewhere or competitor pricing
+   - Stock status, out-of-stock items, or store-level availability
 
-4. Conflicts of Interest & Anti-Manipulation:
-   - Written by seller, competitor, employee, friend, family member, or business partner.
-   - Posted in exchange for compensation or financial incentive.
+4. Conflicts of Interest & Anti-Manipulation
+   - Written by seller, competitor, employee, friend, family member, or business partner
+   - Posted in exchange for compensation or financial incentive
 
-5. Product-Focused Reviews (ALLOWED):
-   - Focuses strictly on the product itself (quality, ease of use, value for money, performance, features, size, specs).
-   - Expresses general price-to-value opinions (e.g., "Great quality for the price").
-   - Expresses general product wishes or usage experience.
+5. Product-Focused Reviews (Allowed)
+   - Focuses strictly on the product itself (quality, performance, specs, value for money)
+   - Expresses general price-to-value opinions or usage experience
 """
 
 if evaluate_btn:
@@ -95,22 +94,25 @@ if evaluate_btn:
             try:
                 prompt = f"""
                 You are an automated compliance officer for noon evaluating product reviews.
-                Evaluate the following customer review based strictly on the provided Product Review Guidelines.
+                Evaluate the following customer review based strictly on the provided official Product Review Guidelines.
 
                 Guidelines:
                 {GUIDELINES}
 
                 Customer Review to evaluate: "{review_text}"
 
+                STRICT INSTRUCTIONS FOR SECTION & SUB-RULE TITLES:
+                - You MUST copy the exact text and numbers from the official guidelines above for 'Main Guideline Section' and 'Specific Sub-rule'. Do NOT summarize, rephrase, or alter any words in these two fields.
+
                 OUTPUT FORMAT RULES:
-                Output strictly in English, using Markdown formatting line by line.
+                Output strictly in English using standard Markdown formatting line by line.
 
                 Follow this exact template:
 
                 * **Decision:** [Must be strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
-                * **Main Guideline Section:** [Specify Section Number & Title, e.g., '2. Seller, Order, Shipping, or Packaging Feedback']
-                * **Specific Sub-rule:** [Specify exact Sub-rule, e.g., 'Seller performance or reputation']
-                * **Comment:** [Write a professional note addressed directly to the seller (e.g., "Dear Seller, ..."). Explain clearly whether the review can or cannot be removed according to noon's guidelines and detail the specific reason.]
+                * **Main Guideline Section:** [Exact section title and number as written in the guidelines, e.g., '2. Seller, Order, or Shipping Feedback']
+                * **Specific Sub-rule:** [Exact bullet point text as written in the guidelines, e.g., 'Seller performance or reputation']
+                * **Comment:** [Write a polite, professional note addressed directly to the seller starting with 'Dear Seller,'. Explain clearly whether the review can or cannot be removed according to noon's guidelines, quoting the exact rule for their reference.]
                 """
 
                 response = client.chat.completions.create(
