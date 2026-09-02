@@ -4,7 +4,7 @@ from groq import Groq
 
 st.set_page_config(page_title="Review Moderation Tool", page_icon="🛡️")
 
-# CSS لإخفاء كافة عناصر التحكم وشارات Streamlit العلوية والسفلية عن التيم والزوار
+# CSS لإخفاء عناصر التحكم وتعطيل النقر والتفاعل مع الأيقونة والشارات نهائياً
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -16,17 +16,25 @@ hide_st_style = """
             .stAppDeployButton {display: none !important;}
             #stDecoration {display: none !important;}
             
-            /* إخفاء شريط الأدوات والشارة السفلية نهائياً */
+            /* إخفاء شريط الأدوات والشارات السفلية */
             div[class*="stAppViewerToolbar"] {display: none !important;}
             [data-testid="stViewerBadge"] {display: none !important;}
             .stAppViewerToolbar {display: none !important;}
-            div[class*="viewerBadge"] {display: none !important; visibility: hidden !important;}
-            div[class*="styles_viewerBadge"] {display: none !important; visibility: hidden !important;}
-            a[href*="streamlit.io/cloud"] {display: none !important; visibility: hidden !important;}
+            div[class*="viewerBadge"] {display: none !important;}
+            div[class*="styles_viewerBadge"] {display: none !important;}
+            a[href*="streamlit.io/cloud"] {display: none !important;}
             
-            /* تنظيف تذييل الصفحة */
-            .stAppFooter {display: none !important; visibility: hidden !important;}
-            footer {display: none !important; visibility: hidden !important;}
+            /* تعطيل جميع الروابط والنقر على أيقونة البروفايل أو الشارات */
+            div[class*="viewerBadge"] *,
+            div[class*="styles_viewerBadge"] *,
+            a[href*="streamlit.io"],
+            a[href*="github.com"] {
+                pointer-events: none !important;
+                cursor: default !important;
+            }
+
+            .stAppFooter {display: none !important;}
+            footer {display: none !important;}
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
