@@ -58,9 +58,14 @@ with col1:
 with col2:
     st.button("Reset", on_click=reset_field)
 
-# OFFICIAL 4 SECTIONS STRICTLY MATCHING THE HELP ARTICLE
+# OFFICIAL NOON PRODUCT REVIEW GUIDELINES
 GUIDELINES = """
-OFFICIAL NOON COMMUNITY GUIDELINES FOR PRODUCT REVIEWS:
+OFFICIAL NOON PRODUCT REVIEW GUIDELINES ARTICLE:
+
+WHAT IS ALLOWED (Product-Focused Content Standards):
+- Honest feedback and direct personal experience with the product itself (e.g., product quality, usage, performance, defect/failure during operation, specification, or price-to-value relationship).
+
+WHAT IS NOT ALLOWED (Violations & Removal Reasons):
 
 1. Community Guideline Violations
 - Point 1: Promotional or advertising content
@@ -91,35 +96,35 @@ if evaluate_btn:
             try:
                 prompt = f"""
                 You are an automated compliance officer for noon evaluating product reviews.
-                Evaluate the customer review based STRICTLY on the official 4-section Product Review Guidelines below.
+                Evaluate the customer review based STRICTLY on the official Product Review Guidelines below.
 
                 Guidelines Article:
                 {GUIDELINES}
 
                 Customer Review: "{review_text}"
 
-                STRICT RULES FOR OUTPUT FORMATION:
+                RULES FOR OUTPUT GENERATION (STRICTLY NO "N/A"):
 
-                IF THE REVIEW VIOLATES GUIDELINES (NOT ALLOWED):
-                - Decision: '❌ Not allowed — the review should be removed'
-                - Main Guideline Section: Must strictly use one of the 4 official sections verbatim (e.g., '1. Community Guideline Violations', '2. Seller, Order, or Shipping Feedback', '3. Invalid Pricing or Availability Comments', '4. Conflicts of Interest & Anti-Manipulation').
-                - Specific Sub-rule: Must strictly use the exact point verbatim (e.g., 'Point 2: Ordering or return experiences').
+                1. IF THE REVIEW VIOLATES GUIDELINES (NOT ALLOWED):
+                   - **Decision:** ❌ Not allowed — the review should be removed
+                   - **Main Guideline Section:** State the exact section number and title from the violation list (e.g., '2. Seller, Order, or Shipping Feedback').
+                   - **Specific Sub-rule:** State the exact point designation and text (e.g., 'Point 2: Ordering or return experiences').
 
-                IF THE REVIEW IS COMPLIANT AND VALID (ALLOWED):
-                - Decision: '✅ Allowed — it should not be removed'
-                - Main Guideline Section: 'N/A (Compliant with Product Review Policy)'
-                - Specific Sub-rule: 'N/A (Focuses strictly on the product itself)'
+                2. IF THE REVIEW IS VALID AND COMPLIANT (ALLOWED):
+                   - **Decision:** ✅ Allowed — it should not be removed
+                   - **Main Guideline Section:** State the relevant compliant section standard (e.g., 'Product-Focused Feedback (Product Quality & Performance)'). NEVER write N/A.
+                   - **Specific Sub-rule:** State the closest relevant reason from the article allowing this feedback (e.g., 'Direct personal experience regarding product defect / operational failure during usage'). NEVER write N/A.
 
-                CRITICAL INSTRUCTION FOR COMMENT FIELD:
-                - Do NOT write 'Dear Seller,' or any greeting/salutation.
-                - Start directly with the professional explanation.
+                3. CRITICAL INSTRUCTION FOR COMMENT:
+                   - NEVER start with 'Dear Seller,' or any greeting/salutation.
+                   - Start directly with the explanation text explaining clearly why the review is allowed or not allowed with reference to the guidelines.
 
-                OUTPUT TEMPLATE:
+                OUTPUT FORMAT TEMPLATE:
 
-                * **Decision:** [Decision status]
+                * **Decision:** [Decision text]
                 * **Main Guideline Section:** [Main Section text]
-                * **Specific Sub-rule:** [Sub-rule text]
-                * **Comment:** [Explanation text starting directly without greetings]
+                * **Specific Sub-rule:** [Specific Sub-rule text]
+                * **Comment:** [Explanation text starting directly without any salutation]
                 """
 
                 response = client.chat.completions.create(
