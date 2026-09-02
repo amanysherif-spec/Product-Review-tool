@@ -58,34 +58,29 @@ with col1:
 with col2:
     st.button("Reset", on_click=reset_field)
 
-# OFFICIAL NOON PRODUCT REVIEW GUIDELINES
+# STRICT 4-SECTION ARTICLE GUIDELINES ONLY
 GUIDELINES = """
-OFFICIAL NOON PRODUCT REVIEW GUIDELINES ARTICLE:
-
-WHAT IS ALLOWED (Product-Focused Content Standards):
-- Honest feedback and direct personal experience with the product itself (e.g., product quality, usage, performance, defect/failure during operation, specification, or price-to-value relationship).
-
-WHAT IS NOT ALLOWED (Violations & Removal Reasons):
+OFFICIAL NOON COMMUNITY GUIDELINES FOR PRODUCT REVIEWS:
 
 1. Community Guideline Violations
-- Point 1: Promotional or advertising content
-- Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language (e.g., words like "مقرف", profane, disgusting, or insulting terms)
-- Point 3: Hate speech or discriminatory remarks
-- Point 4: Personal or sensitive information
+   Point 1: Promotional or advertising content
+   Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language (e.g., words like "مقرف", profane, disgusting, or insulting terms)
+   Point 3: Hate speech or discriminatory remarks
+   Point 4: Personal or sensitive information
 
 2. Seller, Order, or Shipping Feedback
-- Point 1: Seller performance or reputation
-- Point 2: Ordering or return experiences
-- Point 3: Shipping, packaging, or delivery speed
-- Point 4: Product damage or missing items
+   Point 1: Seller performance or reputation
+   Point 2: Ordering or return experiences
+   Point 3: Shipping, packaging, or delivery speed
+   Point 4: Product damage or missing items
 
 3. Invalid Pricing or Availability Comments
-- Point 1: Finding the product cheaper elsewhere or competitor pricing
-- Point 2: Stock status, out-of-stock items, or store-level availability
+   Point 1: Finding the product cheaper elsewhere or competitor pricing
+   Point 2: Stock status, out-of-stock items, or store-level availability
 
 4. Conflicts of Interest & Anti-Manipulation
-- Point 1: Written by seller, competitor, employee, friend, family member, or business partner
-- Point 2: Posted in exchange for compensation or financial incentive
+   Point 1: Written by seller, competitor, employee, friend, family member, or business partner
+   Point 2: Posted in exchange for compensation or financial incentive
 """
 
 if evaluate_btn:
@@ -96,35 +91,30 @@ if evaluate_btn:
             try:
                 prompt = f"""
                 You are an automated compliance officer for noon evaluating product reviews.
-                Evaluate the customer review based STRICTLY on the official Product Review Guidelines below.
+                Evaluate the customer review based STRICTLY and ONLY on the official 4-section Guidelines Article below.
 
                 Guidelines Article:
                 {GUIDELINES}
 
                 Customer Review: "{review_text}"
 
-                RULES FOR OUTPUT GENERATION (STRICTLY NO "N/A"):
+                STRICT SELECTION INSTRUCTIONS:
+                1. Do NOT create, add, or invent any Section 5 or external text. Use ONLY Sections 1, 2, 3, or 4 and their exact points listed above.
+                2. Select the closest and most relevant numbered Section and Point from the article:
+                   - If the review is NOT ALLOWED: Select the exact violated Section (1 to 4) and its exact Point.
+                   - If the review is ALLOWED: Select the closest Section and Point from the article that the review complies with or relates to, and explicitly state in the Comment why it does NOT violate that specific rule.
+                3. Do NOT modify or paraphrase the Section titles or Point text in the output. Copy them verbatim.
 
-                1. IF THE REVIEW VIOLATES GUIDELINES (NOT ALLOWED):
-                   - **Decision:** ❌ Not allowed — the review should be removed
-                   - **Main Guideline Section:** State the exact section number and title from the violation list (e.g., '2. Seller, Order, or Shipping Feedback').
-                   - **Specific Sub-rule:** State the exact point designation and text (e.g., 'Point 2: Ordering or return experiences').
-
-                2. IF THE REVIEW IS VALID AND COMPLIANT (ALLOWED):
-                   - **Decision:** ✅ Allowed — it should not be removed
-                   - **Main Guideline Section:** State the relevant compliant section standard (e.g., 'Product-Focused Feedback (Product Quality & Performance)'). NEVER write N/A.
-                   - **Specific Sub-rule:** State the closest relevant reason from the article allowing this feedback (e.g., 'Direct personal experience regarding product defect / operational failure during usage'). NEVER write N/A.
-
-                3. CRITICAL INSTRUCTION FOR COMMENT:
-                   - NEVER start with 'Dear Seller,' or any greeting/salutation.
-                   - Start directly with the explanation text explaining clearly why the review is allowed or not allowed with reference to the guidelines.
+                CRITICAL INSTRUCTION FOR COMMENT:
+                - Do NOT write 'Dear Seller,' or any greeting/salutation.
+                - Start directly with the professional explanation.
 
                 OUTPUT FORMAT TEMPLATE:
 
-                * **Decision:** [Decision text]
-                * **Main Guideline Section:** [Main Section text]
-                * **Specific Sub-rule:** [Specific Sub-rule text]
-                * **Comment:** [Explanation text starting directly without any salutation]
+                * **Decision:** [Must be strictly '❌ Not allowed — the review should be removed' OR '✅ Allowed — it should not be removed']
+                * **Main Guideline Section:** [Exact Section title and number verbatim from the 4 sections]
+                * **Specific Sub-rule:** [Exact Point designation and text verbatim from the 4 sections]
+                * **Comment:** [Explanation starting directly without any salutation]
                 """
 
                 response = client.chat.completions.create(
