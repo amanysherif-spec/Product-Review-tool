@@ -4,13 +4,39 @@ from groq import Groq
 
 st.set_page_config(page_title="Review Moderation Tool", page_icon="🛡️")
 
-# Hide Streamlit header, menu, and toolbar entirely for visitors
+# CSS قوي لإخفاء شارة Streamlit السفلية تماماً مع تغطيتها
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
             header {visibility: hidden;}
             footer {visibility: hidden;}
             [data-testid="stToolbar"] {visibility: hidden !important;}
+            [data-testid="stStatusWidget"] {visibility: hidden !important;}
+            [data-testid="stAppDeployButton"] {display: none !important;}
+            .stAppDeployButton {display: none !important;}
+            #stDecoration {display: none !important;}
+            
+            /* إخفاء وتغطية شارة Streamlit السفلية */
+            div[class*="viewerBadge"] {display: none !important; visibility: hidden !important;}
+            div[class*="styles_viewerBadge"] {display: none !important; visibility: hidden !important;}
+            a[href*="streamlit.io/cloud"] {display: none !important; visibility: hidden !important;}
+            
+            /* إخفاء شريط الإطار السفلي بالكامل */
+            footer {display: none !important; visibility: hidden !important;}
+            .stAppFooter {display: none !important; visibility: hidden !important;}
+            
+            /* طبقة بيضاء لإخفاء الزاوية اليمنى السفلية تماماً */
+            body::after {
+                content: "";
+                position: fixed;
+                bottom: 0;
+                right: 0;
+                width: 250px;
+                height: 60px;
+                background-color: white;
+                z-index: 999999;
+                pointer-events: none;
+            }
             </style>
             """
 st.markdown(hide_st_style, unsafe_allow_html=True)
