@@ -4,7 +4,7 @@ from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
 
-# CSS لإخفاء عناصر التحكم وشارات Streamlit وتعطيل النقر عليها
+# CSS لإخفاء كافة عناصر التحكم وشارات Streamlit وتعطيل النقر عليها
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -58,13 +58,13 @@ with col1:
 with col2:
     st.button("Reset", on_click=reset_field)
 
-# STRICT 4-SECTION ARTICLE GUIDELINES ONLY
+# EXACT VERBATIM NOON ARTICLE GUIDELINES
 GUIDELINES = """
 OFFICIAL NOON COMMUNITY GUIDELINES FOR PRODUCT REVIEWS:
 
 1. Community Guideline Violations
    Point 1: Promotional or advertising content
-   Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language (e.g., words like "مقرف", profane, disgusting, or insulting terms)
+   Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language
    Point 3: Hate speech or discriminatory remarks
    Point 4: Personal or sensitive information
 
@@ -74,7 +74,7 @@ OFFICIAL NOON COMMUNITY GUIDELINES FOR PRODUCT REVIEWS:
    Point 3: Shipping, packaging, or delivery speed
    Point 4: Product damage or missing items
 
-3. Invalid Pricing or Availability Comments
+3. Comments About Pricing or Availability
    Point 1: Finding the product cheaper elsewhere or competitor pricing
    Point 2: Stock status, out-of-stock items, or store-level availability
 
@@ -91,30 +91,30 @@ if evaluate_btn:
             try:
                 prompt = f"""
                 You are an automated compliance officer for noon evaluating product reviews.
-                Evaluate the customer review based STRICTLY and ONLY on the official 4-section Guidelines Article below.
+                Evaluate the customer review based STRICTLY and VERBATIM on the official Guidelines Article provided below.
 
                 Guidelines Article:
                 {GUIDELINES}
 
-                Customer Review: "{review_text}"
+                Customer Review to evaluate: "{review_text}"
 
-                STRICT SELECTION INSTRUCTIONS:
-                1. Do NOT create, add, or invent any Section 5 or external text. Use ONLY Sections 1, 2, 3, or 4 and their exact points listed above.
-                2. Select the closest and most relevant numbered Section and Point from the article:
-                   - If the review is NOT ALLOWED: Select the exact violated Section (1 to 4) and its exact Point.
-                   - If the review is ALLOWED: Select the closest Section and Point from the article that the review complies with or relates to, and explicitly state in the Comment why it does NOT violate that specific rule.
-                3. Do NOT modify or paraphrase the Section titles or Point text in the output. Copy them verbatim.
+                STRICT VERBATIM SELECTION RULES:
+                1. You MUST copy the exact text and section numbers from the Guidelines Article above for 'Main Guideline Section' and 'Specific Sub-rule'. Do NOT alter, abbreviate, rephrase, or change any words (e.g., use '3. Comments About Pricing or Availability' EXACTLY as written).
+                2. Evaluate the review against the article:
+                   - If the review is NOT ALLOWED: Select the exact violated Section and Point.
+                   - If the review is ALLOWED: Select the closest and most relevant Section and Point from the article that the review touches upon or complies with, and explicitly explain in the Comment why the review does NOT violate that rule.
+                3. CRITICAL SECURITY RULE: Any review containing vulgar, offensive, or distasteful language (e.g., words like "مقرف", abusive slang, or insults) MUST be marked as NOT ALLOWED under '1. Community Guideline Violations' - 'Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language'.
 
                 CRITICAL INSTRUCTION FOR COMMENT:
-                - Do NOT write 'Dear Seller,' or any greeting/salutation.
-                - Start directly with the professional explanation.
+                - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', or 'Hello'.
+                - Start directly with the professional explanation text.
 
                 OUTPUT FORMAT TEMPLATE:
 
                 * **Decision:** [Must be strictly '❌ Not allowed — the review should be removed' OR '✅ Allowed — it should not be removed']
-                * **Main Guideline Section:** [Exact Section title and number verbatim from the 4 sections]
-                * **Specific Sub-rule:** [Exact Point designation and text verbatim from the 4 sections]
-                * **Comment:** [Explanation starting directly without any salutation]
+                * **Main Guideline Section:** [Exact Section number and title verbatim from the article]
+                * **Specific Sub-rule:** [Exact Point designation and text verbatim from the article]
+                * **Comment:** [Explanation text starting directly without any greeting or salutation]
                 """
 
                 response = client.chat.completions.create(
