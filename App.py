@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import streamlit.components.v1 as components
+import re
 from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
@@ -161,8 +162,20 @@ if st.session_state.result_text:
     st.markdown("### Result:")
     st.markdown(st.session_state.result_text)
 
-    # زر النسخ السريع المباشر
-    escaped_text = st.session_state.result_text.replace("`", "'").replace("\\", "\\\\").replace("\n", "\\n")
+    # استخراج نص الـ Comment فقط لنسخه
+    comment_text = ""
+    match = re.search(r"Comment:\*\*\s*(.*)", st.session_state.result_text, re.DOTALL)
+    if not match:
+        match = re.search(r"Comment:\s*(.*)", st.session_state.result_text, re.DOTALL)
+    
+    if match:
+        comment_text = match.group(1).strip()
+    else:
+        comment_text = st.session_state.result_text
+
+    # تجهيز النص للـ JavaScript
+    escaped_comment = comment_text.replace("`", "'").replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
+    
     copy_button_html = f"""
     <button onclick="copyToClipboard()" style="
         background-color: #2e7d32;
@@ -175,15 +188,15 @@ if st.session_state.result_text:
         cursor: pointer;
         margin-top: 10px;
         margin-bottom: 10px;">
-        📋 Copy Result
+        📋 Copy Comment
     </button>
     <script>
     function copyToClipboard() {{
-        const text = `{escaped_text}`;
+        const text = "{escaped_comment}";
         navigator.clipboard.writeText(text).then(function() {{
-            alert('Result copied to clipboard!');
+            alert('Comment copied to clipboard!');
         }}, function(err) {{
-            console.error('Could not copy text: ', err);
+            console.error('Could not copy comment: ', err);
         }});
     }}
     </script>
