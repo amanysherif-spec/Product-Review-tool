@@ -57,16 +57,16 @@ if "review_input" not in st.session_state:
 if "result_text" not in st.session_state:
     st.session_state.result_text = ""
 
-def reset_field():
-    st.session_state.review_input = ""
-    st.session_state.result_text = ""
-
 # اختيار لغة الرد
 lang_option = st.radio(
     "Select Output Language / اختر لغة الرد:",
     options=["English", "Arabic"],
     horizontal=True
 )
+
+def reset_field():
+    st.session_state.review_input = ""
+    st.session_state.result_text = ""
 
 review_text = st.text_area("Enter Customer Review:", key="review_input", height=150)
 
@@ -108,41 +108,48 @@ if evaluate_btn:
             st.error("GROQ_API_KEY environment variable is missing.")
         else:
             try:
-                lang_instruction = (
-                    "Output the response in English, maintaining exact guideline titles verbatim."
-                    if lang_option == "English"
-                    else "Output the evaluation and Comment in professional Arabic, while strictly keeping the Decision exact format."
-                )
+                if lang_option == "English":
+                    lang_instruction = """
+                    Output the ENTIRE evaluation strictly in English.
+
+                    OUTPUT FORMAT TEMPLATE:
+                    * **Decision:** [Must be strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
+                    * **Main Guideline Section:** [Exact Section number and title verbatim from the article]
+                    * **Specific Sub-rule:** [Exact Point designation and text verbatim from the article]
+                    * **Comment:** [Explanation text starting directly without any greeting or salutation]
+                    """
+                else:
+                    lang_instruction = """
+                    Output the ENTIRE evaluation strictly in clear, professional Arabic. Translate all standard labels and guidelines accurately to Arabic.
+
+                    OUTPUT FORMAT TEMPLATE:
+                    * **القرار:** [إما '✅ مسموح — لا ينبغي إزالته' أو '❌ غير مسموح — ينبغي إزالة المراجعة']
+                    * **القسم الرئيسي للإرشادات:** [ترجمة دقيقة لحجم القسم ورقمه]
+                    * **القاعدة الفرعية:** [ترجمة دقيقة للنقطة والمضمون]
+                    * **التعليق:** [شرح مهني يبدأ مباشرة بدون أي مقدمة أو ألقاب]
+                    """
 
                 prompt = f"""
                 You are an automated compliance officer for noon evaluating product reviews.
-                Evaluate the customer review based STRICTLY and VERBATIM on the official Guidelines Article provided below.
+                Evaluate the customer review based STRICTLY on the official Guidelines Article provided below.
 
                 Guidelines Article:
                 {GUIDELINES}
 
                 Customer Review to evaluate: "{review_text}"
 
-                LANGUAGE INSTRUCTION:
                 {lang_instruction}
 
-                STRICT VERBATIM SELECTION RULES:
-                1. You MUST copy the exact text and section numbers from the Guidelines Article above for 'Main Guideline Section' and 'Specific Sub-rule'. Do NOT alter, abbreviate, rephrase, or change any words.
+                EVALUATION RULES:
+                1. Select the correct section and sub-rule matching the official article content.
                 2. Evaluate the review against the article:
-                   - If the review is NOT ALLOWED: Select the exact violated Section and Point.
-                   - If the review is ALLOWED: Select the closest and most relevant Section and Point from the article that the review touches upon or complies with, and explicitly explain in the Comment why the review does NOT violate that rule.
-                3. CRITICAL SECURITY RULE: Any review containing vulgar, offensive, or distasteful language (e.g., words like "مقرف", abusive slang, or insults) MUST be marked as NOT ALLOWED under '1. Community Guideline Violations' - 'Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language'.
+                   - If NOT ALLOWED: Select the exact violated Section and Point.
+                   - If ALLOWED: Select the closest and most relevant Section and Point from the article, and explicitly explain in the Comment why the review does NOT violate that rule.
+                3. CRITICAL SECURITY RULE: Any review containing vulgar, offensive, or distasteful language MUST be marked as NOT ALLOWED under Section 1 - Point 2.
 
                 CRITICAL INSTRUCTION FOR COMMENT:
                 - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', 'مرحباً عزيزي البائع' or 'عزيزي البائع'.
                 - Start directly with the professional explanation text.
-
-                OUTPUT FORMAT TEMPLATE:
-
-                * **Decision:** [Must be STRICTLY either '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
-                * **Main Guideline Section:** [Exact Section number and title]
-                * **Specific Sub-rule:** [Exact Point designation and text]
-                * **Comment:** [Explanation text starting directly without any greeting or salutation]
                 """
 
                 response = client.chat.completions.create(
@@ -162,11 +169,11 @@ if st.session_state.result_text:
     st.markdown("### Result:")
     st.markdown(st.session_state.result_text)
 
-    # استخراج نص الـ Comment فقط لنسخه
+    # استخراج نص الـ Comment / التعليق فقط لنسخه
     comment_text = ""
-    match = re.search(r"Comment:\*\*\s*(.*)", st.session_state.result_text, re.DOTALL)
+    match = re.search(r"(?:Comment|التعليق):\*\*\s*(.*)", st.session_state.result_text, re.DOTALL)
     if not match:
-        match = re.search(r"Comment:\s*(.*)", st.session_state.result_text, re.DOTALL)
+        match = re.search(r"(?:Comment|التعليق):\s*(.*)", st.session_state.result_text, re.DOTALL)
     
     if match:
         comment_text = match.group(1).strip()
