@@ -108,9 +108,9 @@ if evaluate_btn:
         else:
             try:
                 lang_instruction = (
-                    "Output the response strictly in English."
+                    "Output the response in English, maintaining exact guideline titles verbatim."
                     if lang_option == "English"
-                    else "Output the entire evaluation and Comment strictly in professional Arabic."
+                    else "Output the evaluation and Comment in professional Arabic, while strictly keeping the Decision exact format."
                 )
 
                 prompt = f"""
@@ -136,9 +136,9 @@ if evaluate_btn:
                 - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', 'مرحباً عزيزي البائع' or 'عزيزي البائع'.
                 - Start directly with the professional explanation text.
 
-                OUTPUT FORMAT TEMPLATE (Keep standard labels):
+                OUTPUT FORMAT TEMPLATE:
 
-                * **Decision:** [Status]
+                * **Decision:** [Must be STRICTLY either '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
                 * **Main Guideline Section:** [Exact Section number and title]
                 * **Specific Sub-rule:** [Exact Point designation and text]
                 * **Comment:** [Explanation text starting directly without any greeting or salutation]
@@ -161,7 +161,7 @@ if st.session_state.result_text:
     st.markdown("### Result:")
     st.markdown(st.session_state.result_text)
 
-    # زر النسخ السريع المباشر ببرمجة JavaScript
+    # زر النسخ السريع المباشر
     escaped_text = st.session_state.result_text.replace("`", "'").replace("\\", "\\\\").replace("\n", "\\n")
     copy_button_html = f"""
     <button onclick="copyToClipboard()" style="
