@@ -1,12 +1,10 @@
 import streamlit as st
 import os
-import pandas as pd
-import io
 from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
 
-# CSS لإخفاء عناصر التحكم وتعديل أبعاد الأزرار لعدم قطع النصوص
+# CSS لإخفاء عناصر التحكم وتعديل أبعاد الزر الرئيسي لمنع قطع النص
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -54,22 +52,20 @@ DEFAULT_MODEL = "qwen/qwen3.8-27b"
 
 if "review_input" not in st.session_state:
     st.session_state.review_input = ""
-if "last_result" not in st.session_state:
-    st.session_state.last_result = None
 
 def reset_field():
     st.session_state.review_input = ""
-    st.session_state.last_result = None
 
 review_text = st.text_area("Enter Customer Review:", key="review_input", height=150)
 
-# تعديل أبعاد الأعمدة لإعطاء المساحة الكافية للزر الرئيسي
-col1, col2, col3 = st.columns([2, 1, 4])
+# زيادة مساحة العمود الخاص بالزر لضمان ظهور النص كاملاً
+col1, col2 = st.columns([2, 5])
 with col1:
     evaluate_btn = st.button("Evaluate Review", type="primary")
 with col2:
     st.button("Reset", on_click=reset_field)
 
+# EXACT VERBATIM NOON ARTICLE GUIDELINES
 GUIDELINES = """
 OFFICIAL NOON COMMUNITY GUIDELINES FOR PRODUCT REVIEWS:
 
@@ -122,10 +118,10 @@ if evaluate_btn:
 
                 OUTPUT FORMAT TEMPLATE:
 
-                Decision: [Must be strictly '❌ Not allowed — the review should be removed' OR '✅ Allowed — it should not be removed']
-                Main Guideline Section: [Exact Section number and title verbatim from the article]
-                Specific Sub-rule: [Exact Point designation and text verbatim from the article]
-                Comment: [Explanation text starting directly without any greeting or salutation]
+                * **Decision:** [Must be strictly '❌ Not allowed — the review should be removed' OR '✅ Allowed — it should not be removed']
+                * **Main Guideline Section:** [Exact Section number and title verbatim from the article]
+                * **Specific Sub-rule:** [Exact Point designation and text verbatim from the article]
+                * **Comment:** [Explanation text starting directly without any greeting or salutation]
                 """
 
                 response = client.chat.completions.create(
@@ -134,62 +130,17 @@ if evaluate_btn:
                     temperature=0.0
                 )
 
-                raw_output = response.choices[0].message.content
-                st.session_state.last_result = raw_output
+                result = response.choices[0].message.content
+
+                st.markdown("### Result:")
+                st.markdown(result)
+
+                # Fixed Reference Link at the bottom
+                st.markdown("---")
+                st.markdown("**Guidelines Reference:**")
+                st.markdown("https://help.noon.com/portal/en/kb/articles/noon-community-guidelines")
 
             except Exception as e:
                 st.error(f"Error: {e}")
     else:
         st.warning("Please enter a review first.")
-
-if st.session_state.last_result:
-    st.markdown("### Result:")
-    st.markdown(st.session_state.last_result)
-
-    # تجهيز البيانات للتحميل
-    lines = [line.strip() for line in st.session_state.last_result.split('\n') if line.strip()]
-    parsed_data = {"Review": review_text}
-    
-    for line in lines:
-        if line.startswith("Decision:") or line.startswith("* **Decision:**"):
-            parsed_data["Decision"] = line.split(":", 1)[1].strip().replace("**", "")
-        elif line.startswith("Main Guideline Section:") or line.startswith("* **Main Guideline Section:**"):
-            parsed_data["Main Guideline Section"] = line.split(":", 1)[1].strip().replace("**", "")
-        elif line.startswith("Specific Sub-rule:") or line.startswith("* **Specific Sub-rule:**"):
-            parsed_data["Specific Sub-rule"] = line.split(":", 1)[1].strip().replace("**", "")
-        elif line.startswith("Comment:") or line.startswith("* **Comment:**"):
-            parsed_data["Comment"] = line.split(":", 1)[1].strip().replace("**", "")
-
-    df = pd.DataFrame([parsed_data])
-
-    # تحويل البيانات إلى CSV
-    csv_data = df.to_csv(index=False).encode('utf-8-sig')
-
-    # تحويل البيانات إلى Excel
-    excel_buffer = io.BytesIO()
-    with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-        df.to_excel(writer, index=False, sheet_name='Moderation Result')
-    excel_data = excel_buffer.getvalue()
-
-    st.markdown("---")
-    st.markdown("**Download Result:**")
-    dl_col1, dl_col2, _ = st.columns([2, 2, 3])
-    
-    with dl_col1:
-        st.download_button(
-            label="📥 Download CSV",
-            data=csv_data,
-            file_name="moderation_result.csv",
-            mime="text/csv"
-        )
-    with dl_col2:
-        st.download_button(
-            label="📊 Download Excel",
-            data=excel_data,
-            file_name="moderation_result.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-
-    st.markdown("---")
-    st.markdown("**Guidelines Reference:**")
-    st.markdown("https://help.noon.com/portal/en/kb/articles/noon-community-guidelines")
