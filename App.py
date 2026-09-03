@@ -213,4 +213,4 @@ if st.session_state.result_text:
     # Fixed Reference Link at the bottom
     st.markdown("---")
     st.markdown("**Guidelines Reference:**")
-    st.markdown("https://help.noon.com/portal/en/kb/articles/noon-community-guidelines")
+    st.markdown("https://help.noon.com/portal/en/kb/articles/product-review-guidelines")
