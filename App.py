@@ -1,10 +1,11 @@
 import streamlit as st
 import os
+import streamlit.components.v1 as components
 from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
 
-# CSS لإخفاء عناصر التحكم وتعديل أبعاد الزر الرئيسي لمنع قطع النص
+# CSS لإخفاء عناصر التحكم وتعديل أبعاد الزر الرئيسي لمنع قص النص
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -52,13 +53,23 @@ DEFAULT_MODEL = "qwen/qwen3.8-27b"
 
 if "review_input" not in st.session_state:
     st.session_state.review_input = ""
+if "result_text" not in st.session_state:
+    st.session_state.result_text = ""
 
 def reset_field():
     st.session_state.review_input = ""
+    st.session_state.result_text = ""
+
+# اختيار لغة الرد
+lang_option = st.radio(
+    "Select Output Language / اختر لغة الرد:",
+    options=["English", "Arabic"],
+    horizontal=True
+)
 
 review_text = st.text_area("Enter Customer Review:", key="review_input", height=150)
 
-# زيادة مساحة العمود الخاص بالزر لضمان ظهور النص كاملاً
+# تنظيم أبعاد الأزرار
 col1, col2 = st.columns([2, 5])
 with col1:
     evaluate_btn = st.button("Evaluate Review", type="primary")
@@ -96,6 +107,12 @@ if evaluate_btn:
             st.error("GROQ_API_KEY environment variable is missing.")
         else:
             try:
+                lang_instruction = (
+                    "Output the response strictly in English."
+                    if lang_option == "English"
+                    else "Output the entire evaluation and Comment strictly in professional Arabic."
+                )
+
                 prompt = f"""
                 You are an automated compliance officer for noon evaluating product reviews.
                 Evaluate the customer review based STRICTLY and VERBATIM on the official Guidelines Article provided below.
@@ -105,22 +122,25 @@ if evaluate_btn:
 
                 Customer Review to evaluate: "{review_text}"
 
+                LANGUAGE INSTRUCTION:
+                {lang_instruction}
+
                 STRICT VERBATIM SELECTION RULES:
-                1. You MUST copy the exact text and section numbers from the Guidelines Article above for 'Main Guideline Section' and 'Specific Sub-rule'. Do NOT alter, abbreviate, rephrase, or change any words (e.g., use '3. Comments About Pricing or Availability' EXACTLY as written).
+                1. You MUST copy the exact text and section numbers from the Guidelines Article above for 'Main Guideline Section' and 'Specific Sub-rule'. Do NOT alter, abbreviate, rephrase, or change any words.
                 2. Evaluate the review against the article:
                    - If the review is NOT ALLOWED: Select the exact violated Section and Point.
                    - If the review is ALLOWED: Select the closest and most relevant Section and Point from the article that the review touches upon or complies with, and explicitly explain in the Comment why the review does NOT violate that rule.
                 3. CRITICAL SECURITY RULE: Any review containing vulgar, offensive, or distasteful language (e.g., words like "مقرف", abusive slang, or insults) MUST be marked as NOT ALLOWED under '1. Community Guideline Violations' - 'Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language'.
 
                 CRITICAL INSTRUCTION FOR COMMENT:
-                - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', or 'Hello'.
+                - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', 'مرحباً عزيزي البائع' or 'عزيزي البائع'.
                 - Start directly with the professional explanation text.
 
-                OUTPUT FORMAT TEMPLATE:
+                OUTPUT FORMAT TEMPLATE (Keep standard labels):
 
-                * **Decision:** [Must be strictly '❌ Not allowed — the review should be removed' OR '✅ Allowed — it should not be removed']
-                * **Main Guideline Section:** [Exact Section number and title verbatim from the article]
-                * **Specific Sub-rule:** [Exact Point designation and text verbatim from the article]
+                * **Decision:** [Status]
+                * **Main Guideline Section:** [Exact Section number and title]
+                * **Specific Sub-rule:** [Exact Point designation and text]
                 * **Comment:** [Explanation text starting directly without any greeting or salutation]
                 """
 
@@ -130,17 +150,47 @@ if evaluate_btn:
                     temperature=0.0
                 )
 
-                result = response.choices[0].message.content
-
-                st.markdown("### Result:")
-                st.markdown(result)
-
-                # Fixed Reference Link at the bottom
-                st.markdown("---")
-                st.markdown("**Guidelines Reference:**")
-                st.markdown("https://help.noon.com/portal/en/kb/articles/noon-community-guidelines")
+                st.session_state.result_text = response.choices[0].message.content
 
             except Exception as e:
                 st.error(f"Error: {e}")
     else:
         st.warning("Please enter a review first.")
+
+if st.session_state.result_text:
+    st.markdown("### Result:")
+    st.markdown(st.session_state.result_text)
+
+    # زر النسخ السريع المباشر ببرمجة JavaScript
+    escaped_text = st.session_state.result_text.replace("`", "'").replace("\\", "\\\\").replace("\n", "\\n")
+    copy_button_html = f"""
+    <button onclick="copyToClipboard()" style="
+        background-color: #2e7d32;
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        font-size: 14px;
+        font-weight: bold;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-top: 10px;
+        margin-bottom: 10px;">
+        📋 Copy Result
+    </button>
+    <script>
+    function copyToClipboard() {{
+        const text = `{escaped_text}`;
+        navigator.clipboard.writeText(text).then(function() {{
+            alert('Result copied to clipboard!');
+        }}, function(err) {{
+            console.error('Could not copy text: ', err);
+        }});
+    }}
+    </script>
+    """
+    components.html(copy_button_html, height=65)
+
+    # Fixed Reference Link at the bottom
+    st.markdown("---")
+    st.markdown("**Guidelines Reference:**")
+    st.markdown("https://help.noon.com/portal/en/kb/articles/noon-community-guidelines")
