@@ -146,6 +146,7 @@ if evaluate_btn:
                    - If NOT ALLOWED: Select the exact violated Section and Point.
                    - If ALLOWED: Select the closest and most relevant Section and Point from the article, and explicitly explain in the Comment why the review does NOT violate that rule.
                 3. CRITICAL SECURITY RULE: Any review containing vulgar, offensive, or distasteful language MUST be marked as NOT ALLOWED under Section 1 - Point 2.
+                4. CRITICAL DAMAGE RULE: Any review mentioning that the product arrived broken, damaged, crushed, or destroyed (e.g., "مكسور", "خربان", "تالف", "مهلك") MUST be marked as NOT ALLOWED under '2. Seller, Order, or Shipping Feedback' - 'Point 4: Product damage or missing items', regardless of whether the customer expresses hypothetical liking for the product.
 
                 CRITICAL INSTRUCTION FOR COMMENT:
                 - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', 'مرحباً عزيزي البائع' or 'عزيزي البائع'.
