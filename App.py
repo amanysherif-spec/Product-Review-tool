@@ -6,6 +6,7 @@ from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
 
+# CSS لإخفاء عناصر التحكم وتعديل أبعاد الزر الرئيسي لمنع قص النص
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -35,6 +36,7 @@ hide_st_style = """
             .stAppFooter {display: none !important;}
             footer {display: none !important;}
 
+            /* تحسين عرض الأزرار لمنع قص النص */
             div.stButton > button {
                 width: 100%;
                 white-space: nowrap;
@@ -53,8 +55,9 @@ if "review_input" not in st.session_state:
 if "result_text" not in st.session_state:
     st.session_state.result_text = ""
 
+# اختيار لغة الرد
 lang_option = st.radio(
-    "Select Output Language:",
+    "Select Output Language / اختر لغة الرد:",
     options=["English", "Arabic"],
     horizontal=True
 )
@@ -65,18 +68,36 @@ def reset_field():
 
 review_text = st.text_area("Enter Customer Review:", key="review_input", height=150)
 
+# تنظيم أبعاد الأزرار
 col1, col2 = st.columns([2, 5])
 with col1:
     evaluate_btn = st.button("Evaluate Review", type="primary")
 with col2:
     st.button("Reset", on_click=reset_field)
 
-# القواعد بنفس المصطلحات المكتوبة في الصورة تماماً
-GUIDELINES_TEXT = """
-1. Community Guideline Violations: Point 1: Promotional or advertising content | Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language | Point 3: Hate speech or discriminatory remarks | Point 4: Personal or sensitive information
-2. Seller, Order, or Shipping Feedback: Point 1: Seller performance or reputation | Point 2: Ordering or return experiences | Point 3: Shipping, packaging, or delivery speed | Point 4: Product damage or missing items
-3. Comments About Pricing or Availability: Point 1: Competitor pricing or comparisons | Point 2: Stock status or store-level availability
-4. Conflicts of Interest: Point 1: Created by friends, family, employers, or competitors | Point 2: Posted in exchange for compensation
+# EXACT VERBATIM NOON ARTICLE GUIDELINES
+GUIDELINES = """
+OFFICIAL NOON COMMUNITY GUIDELINES FOR PRODUCT REVIEWS:
+
+1. Community Guideline Violations
+   Point 1: Promotional or advertising content
+   Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language
+   Point 3: Hate speech or discriminatory remarks
+   Point 4: Personal or sensitive information
+
+2. Seller, Order, or Shipping Feedback
+   Point 1: Seller performance or reputation
+   Point 2: Ordering or return experiences
+   Point 3: Shipping, packaging, or delivery speed
+   Point 4: Product damage or missing items
+
+3. Comments About Pricing or Availability
+   Point 1: Finding the product cheaper elsewhere or competitor pricing
+   Point 2: Stock status, out-of-stock items, or store-level availability
+
+4. Conflicts of Interest & Anti-Manipulation
+   Point 1: Written by seller, competitor, employee, friend, family member, or business partner
+   Point 2: Posted in exchange for compensation or financial incentive
 """
 
 if evaluate_btn:
@@ -86,37 +107,50 @@ if evaluate_btn:
         else:
             if lang_option == "English":
                 lang_instruction = """
-You MUST output EXACTLY 4 bullet points using markdown (`* `). Do not output plain sentences.
+                Output the ENTIRE evaluation strictly in English.
 
-* **Decision:** [Strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
-* **Main Guideline Section:** [Section Name e.g. '1. Community Guideline Violations' OR 'N/A' if Allowed]
-* **Specific Sub-rule:** [Sub-rule text e.g. 'Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language' OR 'N/A' if Allowed]
-* **Comment:** [Detailed explanation mentioning the specific review text without any greetings]
-"""
+                OUTPUT FORMAT TEMPLATE:
+                * **Decision:** [Must be strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
+                * **Main Guideline Section:** [Exact Section number and title verbatim from the article]
+                * **Specific Sub-rule:** [Exact Point designation and text verbatim from the article]
+                * **Comment:** [Explanation text starting directly without any greeting or salutation]
+                """
             else:
                 lang_instruction = """
-يجب إخراج التقييم في 4 نقاط دقيقة باستخدام Markdown (`* `):
+                Output the ENTIRE evaluation strictly in clear, professional Arabic. Translate all standard labels and guidelines accurately to Arabic.
 
-* **القرار:** ['✅ مسموح — لا ينبغي إزالته' أو '❌ غير مسموح — ينبغي إزالة المراجعة']
-* **القسم الرئيسي للإرشادات:** [اسم القسم المخالف أو 'لا يوجد' إذا كان مسموحاً]
-* **القاعدة الفرعية:** [اسم ونص القاعدة الفرعية المخالفة أو 'لا يوجد' إذا كان مسموحاً]
-* **التعليق:** [شرح تفصيلي مع اقتباس النص بدون أي مقدمات أو ألقاب]
-"""
+                OUTPUT FORMAT TEMPLATE:
+                * **القرار:** [إما '✅ مسموح — لا ينبغي إزالته' أو '❌ غير مسموح — ينبغي إزالة المراجعة']
+                * **القسم الرئيسي للإرشادات:** [ترجمة دقيقة لحجم القسم ورقمه]
+                * **القاعدة الفرعية:** [ترجمة دقيقة للنقطة والمضمون]
+                * **التعليق:** [شرح مهني يبدأ مباشرة بدون أي مقدمة أو ألقاب]
+                """
 
             prompt = f"""
-You are a strict product review compliance officer evaluating customer reviews based on these exact rules:
-{GUIDELINES_TEXT}
+            You are an automated compliance officer for noon evaluating product reviews.
+            Evaluate the customer review based STRICTLY on the official Guidelines Article provided below.
 
-Review to evaluate: "{review_text}"
+            Guidelines Article:
+            {GUIDELINES}
 
-{lang_instruction}
+            Customer Review to evaluate: "{review_text}"
 
-STRICT CRITERIA:
-1. Normal negative feedback about product quality/usability (e.g. "Very bad", "Poor product") is ALLOWED. Main Guideline Section and Specific Sub-rule MUST be N/A.
-2. If the review contains vulgar words, insults, or profanity (e.g., "زبالة"), it is NOT ALLOWED under Section 1, Point 2.
-3. Every single field MUST be printed on a NEW LINE as a Bullet Point (`* `).
-"""
+            {lang_instruction}
 
+            EVALUATION RULES:
+            1. Select the correct section and sub-rule matching the official article content.
+            2. Evaluate the review against the article:
+               - If NOT ALLOWED: Select the exact violated Section and Point.
+               - If ALLOWED: Select the closest and most relevant Section and Point from the article, and explicitly explain in the Comment why the review does NOT violate that rule.
+            3. CRITICAL SECURITY RULE: Any review containing vulgar, offensive, or distasteful language MUST be marked as NOT ALLOWED under Section 1 - Point 2.
+            4. CRITICAL DAMAGE RULE: Any review mentioning that the product arrived broken, damaged, crushed, or destroyed (e.g., "مكسور", "خربان", "تالف", "مهلك") MUST be marked as NOT ALLOWED under '2. Seller, Order, or Shipping Feedback' - 'Point 4: Product damage or missing items', regardless of whether the customer expresses hypothetical liking for the product.
+
+            CRITICAL INSTRUCTION FOR COMMENT:
+            - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', 'مرحباً عزيزي البائع' or 'عزيزي البائع'.
+            - Start directly with the professional explanation text.
+            """
+
+            # الجزء المعدل لمنع توقف الـ Tool عن العمل في حال عدم وجود أو إيقاف موديل معين
             try:
                 available_models = client.models.list().data
                 active_text_models = [
@@ -134,8 +168,7 @@ STRICT CRITERIA:
                     response = client.chat.completions.create(
                         model=model_id,
                         messages=[{"role": "user", "content": prompt}],
-                        temperature=0.0,
-                        max_tokens=300
+                        temperature=0.0
                     )
                     st.session_state.result_text = response.choices[0].message.content
                     success = True
@@ -145,7 +178,7 @@ STRICT CRITERIA:
                     continue
 
             if not success:
-                st.error(f"Execution Error: {last_error if last_error else 'No active text models found'}")
+                st.error(f"Error: {last_error if last_error else 'No active text models found'}")
     else:
         st.warning("Please enter a review first.")
 
@@ -153,6 +186,7 @@ if st.session_state.result_text:
     st.markdown("### Result:")
     st.markdown(st.session_state.result_text)
 
+    # استخراج نص الـ Comment / التعليق فقط لنسخه
     comment_text = ""
     match = re.search(r"(?:Comment|التعليق):\*\*\s*(.*)", st.session_state.result_text, re.DOTALL)
     if not match:
@@ -163,6 +197,7 @@ if st.session_state.result_text:
     else:
         comment_text = st.session_state.result_text
 
+    # تجهيز النص للـ JavaScript
     escaped_comment = comment_text.replace("`", "'").replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
     
     copy_button_html = f"""
@@ -192,6 +227,7 @@ if st.session_state.result_text:
     """
     components.html(copy_button_html, height=65)
 
+    # Fixed Reference Link at the bottom
     st.markdown("---")
     st.markdown("**Guidelines Reference:**")
     st.markdown("https://help.noon.com/portal/en/kb/articles/product-review-guidelines")
