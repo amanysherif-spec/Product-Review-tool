@@ -50,7 +50,7 @@ st.title("Product Review Moderation Tool")
 api_key = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=api_key) if api_key else None
 
-DEFAULT_MODEL = "qwen/qwen3.8-27b"
+DEFAULT_MODEL = "llama-3.3-70b-versatile"
 
 if "review_input" not in st.session_state:
     st.session_state.review_input = ""
@@ -156,7 +156,8 @@ if evaluate_btn:
                 response = client.chat.completions.create(
                     model=DEFAULT_MODEL,
                     messages=[{"role": "user", "content": prompt}],
-                    temperature=0.0
+                    temperature=0.0,
+                    max_tokens=400
                 )
 
                 st.session_state.result_text = response.choices[0].message.content
