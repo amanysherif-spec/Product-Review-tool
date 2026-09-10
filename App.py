@@ -71,11 +71,12 @@ with col1:
 with col2:
     st.button("Reset", on_click=reset_field)
 
-GUIDELINES = """
-1. Community Guideline Violations: Point 1: Promotional content | Point 2: Offensive/abusive/vulgar language | Point 3: Hate speech | Point 4: Personal info
-2. Seller/Order/Shipping Feedback: Point 1: Seller performance | Point 2: Order/return experience | Point 3: Shipping/packaging/delivery | Point 4: Product damage or missing items
-3. Pricing/Availability: Point 1: Competitor pricing | Point 2: Stock status
-4. Conflicts of Interest: Point 1: Posted by seller/friend/family | Point 2: Paid review
+# القواعد بنفس المصطلحات المكتوبة في الصورة تماماً
+GUIDELINES_TEXT = """
+1. Community Guideline Violations: Point 1: Promotional or advertising content | Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language | Point 3: Hate speech or discriminatory remarks | Point 4: Personal or sensitive information
+2. Seller, Order, or Shipping Feedback: Point 1: Seller performance or reputation | Point 2: Ordering or return experiences | Point 3: Shipping, packaging, or delivery speed | Point 4: Product damage or missing items
+3. Comments About Pricing or Availability: Point 1: Competitor pricing or comparisons | Point 2: Stock status or store-level availability
+4. Conflicts of Interest: Point 1: Created by friends, family, employers, or competitors | Point 2: Posted in exchange for compensation
 """
 
 if evaluate_btn:
@@ -85,35 +86,36 @@ if evaluate_btn:
         else:
             if lang_option == "English":
                 lang_instruction = """
-                OUTPUT FORMAT:
-                * **Decision:** [Strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
-                * **Main Guideline Section:** [Section number & name, OR 'N/A' if Allowed]
-                * **Specific Sub-rule:** [Point designation & text, OR 'N/A' if Allowed]
-                * **Comment:** [Direct explanation quoting the review without greetings/salutations]
-                """
+You MUST output EXACTLY 4 bullet points using markdown (`* `). Do not output plain sentences.
+
+* **Decision:** [Strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
+* **Main Guideline Section:** [Section Name e.g. '1. Community Guideline Violations' OR 'N/A' if Allowed]
+* **Specific Sub-rule:** [Sub-rule text e.g. 'Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language' OR 'N/A' if Allowed]
+* **Comment:** [Detailed explanation mentioning the specific review text without any greetings]
+"""
             else:
                 lang_instruction = """
-                OUTPUT FORMAT (in Arabic):
-                * **القرار:** ['✅ مسموح — لا ينبغي إزالته' OR '❌ غير مسموح — ينبغي إزالة المراجعة']
-                * **القسم الرئيسي للإرشادات:** [اسم ورقم القسم المخالف، أو 'لا يوجد' إذا كان مسموحاً]
-                * **القاعدة الفرعية:** [رقم ونص القاعدة الفرعية المخالفة، أو 'لا يوجد' إذا كان مسموحاً]
-                * **التعليق:** [شرح مباشر مع اقتباس النص بدون أي ألقاب أو مقدمات]
-                """
+يجب إخراج التقييم في 4 نقاط دقيقة باستخدام Markdown (`* `):
+
+* **القرار:** ['✅ مسموح — لا ينبغي إزالته' أو '❌ غير مسموح — ينبغي إزالة المراجعة']
+* **القسم الرئيسي للإرشادات:** [اسم القسم المخالف أو 'لا يوجد' إذا كان مسموحاً]
+* **القاعدة الفرعية:** [اسم ونص القاعدة الفرعية المخالفة أو 'لا يوجد' إذا كان مسموحاً]
+* **التعليق:** [شرح تفصيلي مع اقتباس النص بدون أي مقدمات أو ألقاب]
+"""
 
             prompt = f"""
-            You are a compliance officer evaluating product reviews for noon based on these rules:
-            {GUIDELINES}
+You are a strict product review compliance officer evaluating customer reviews based on these exact rules:
+{GUIDELINES_TEXT}
 
-            Review: "{review_text}"
+Review to evaluate: "{review_text}"
 
-            {lang_instruction}
+{lang_instruction}
 
-            RULES:
-            1. If broken/damaged/not working upon arrival, mark NOT ALLOWED under Section 2 - Point 4.
-            2. If offensive/vulgar, mark NOT ALLOWED under Section 1 - Point 2.
-            3. If the review is valid and has no violation, mark ALLOWED and set Main Guideline Section and Specific Sub-rule to 'N/A'.
-            4. No greetings in Comment. Start directly with evaluation.
-            """
+STRICT CRITERIA:
+1. Normal negative feedback about product quality/usability (e.g. "Very bad", "Poor product") is ALLOWED. Main Guideline Section and Specific Sub-rule MUST be N/A.
+2. If the review contains vulgar words, insults, or profanity (e.g., "زبالة"), it is NOT ALLOWED under Section 1, Point 2.
+3. Every single field MUST be printed on a NEW LINE as a Bullet Point (`* `).
+"""
 
             try:
                 available_models = client.models.list().data
@@ -133,7 +135,7 @@ if evaluate_btn:
                         model=model_id,
                         messages=[{"role": "user", "content": prompt}],
                         temperature=0.0,
-                        max_tokens=250
+                        max_tokens=300
                     )
                     st.session_state.result_text = response.choices[0].message.content
                     success = True
