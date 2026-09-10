@@ -6,7 +6,6 @@ from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
 
-# CSS to hide controls and adjust layout
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -36,7 +35,6 @@ hide_st_style = """
             .stAppFooter {display: none !important;}
             footer {display: none !important;}
 
-            /* Prevent text clipping in buttons */
             div.stButton > button {
                 width: 100%;
                 white-space: nowrap;
@@ -50,15 +48,11 @@ st.title("Product Review Moderation Tool")
 api_key = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=api_key) if api_key else None
 
-# النموذج الوحيد المعتمد والشغال حالياً على Groq
-MODEL_NAME = "llama-3.3-70b-versatile"
-
 if "review_input" not in st.session_state:
     st.session_state.review_input = ""
 if "result_text" not in st.session_state:
     st.session_state.result_text = ""
 
-# Output language selection
 lang_option = st.radio(
     "Select Output Language:",
     options=["English", "Arabic"],
@@ -77,7 +71,6 @@ with col1:
 with col2:
     st.button("Reset", on_click=reset_field)
 
-# OFFICIAL NOON COMMUNITY GUIDELINES
 GUIDELINES = """
 OFFICIAL NOON COMMUNITY GUIDELINES FOR PRODUCT REVIEWS:
 
@@ -153,8 +146,13 @@ if evaluate_btn:
             """
 
             try:
+                # الكشف التلقائي عن أحدث نموذج متاح للحساب
+                available_models = client.models.list().data
+                model_ids = [m.id for m in available_models if "llama" in m.id]
+                selected_model = model_ids[0] if model_ids else "llama3-70b-8192"
+
                 response = client.chat.completions.create(
-                    model=MODEL_NAME,
+                    model=selected_model,
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.0,
                     max_tokens=250
@@ -169,7 +167,6 @@ if st.session_state.result_text:
     st.markdown("### Result:")
     st.markdown(st.session_state.result_text)
 
-    # Extract Comment section for clean copying
     comment_text = ""
     match = re.search(r"(?:Comment|التعليق):\*\*\s*(.*)", st.session_state.result_text, re.DOTALL)
     if not match:
@@ -180,7 +177,6 @@ if st.session_state.result_text:
     else:
         comment_text = st.session_state.result_text
 
-    # Escape characters for JavaScript string execution
     escaped_comment = comment_text.replace("`", "'").replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
     
     copy_button_html = f"""
@@ -210,7 +206,6 @@ if st.session_state.result_text:
     """
     components.html(copy_button_html, height=65)
 
-    # Fixed Reference Link at bottom
     st.markdown("---")
     st.markdown("**Guidelines Reference:**")
     st.markdown("https://help.noon.com/portal/en/kb/articles/product-review-guidelines")
