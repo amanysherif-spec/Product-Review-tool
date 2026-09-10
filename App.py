@@ -115,26 +115,29 @@ if evaluate_btn:
             """
 
             try:
-                # تجربة النماذج الشغالة بترتيب الأقل استهلاكاً للتوكنز
-                models_to_try = ["llama-3.1-8b-instant", "llama3-8b-8192", "llama-3.3-70b-versatile"]
+                # جلب النماذج المتاحة فعلياً في حسابك ديناميكياً
+                available_models = [m.id for m in client.models.list().data]
                 
-                response = None
-                for model_item in models_to_try:
-                    try:
-                        response = client.chat.completions.create(
-                            model=model_item,
-                            messages=[{"role": "user", "content": prompt}],
-                            temperature=0.0,
-                            max_tokens=200
-                        )
+                # ترتيب التفضيل للنماذج المتاحة
+                preferred_models = ["llama-3.3-70b-versatile", "llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"]
+                selected_model = None
+                
+                for pm in preferred_models:
+                    if pm in available_models:
+                        selected_model = pm
                         break
-                    except Exception:
-                        continue
+                
+                # في حال عدم وجود النماذج المحددة، اختر أول نموذج متاح بالخدمة
+                if not selected_model and available_models:
+                    selected_model = available_models[0]
 
-                if response:
-                    st.session_state.result_text = response.choices[0].message.content
-                else:
-                    st.error("Could not process request with available models.")
+                response = client.chat.completions.create(
+                    model=selected_model,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.0,
+                    max_tokens=250
+                )
+                st.session_state.result_text = response.choices[0].message.content
 
             except Exception as e:
                 st.error(f"Execution Error: {e}")
