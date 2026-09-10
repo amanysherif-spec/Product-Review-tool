@@ -6,6 +6,7 @@ from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
 
+# CSS لإخفاء عناصر التحكم وتعديل أبعاد الزر الرئيسي لمنع قص النص
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -35,6 +36,7 @@ hide_st_style = """
             .stAppFooter {display: none !important;}
             footer {display: none !important;}
 
+            /* تحسين عرض الأزرار لمنع قص النص */
             div.stButton > button {
                 width: 100%;
                 white-space: nowrap;
@@ -53,6 +55,7 @@ if "review_input" not in st.session_state:
 if "result_text" not in st.session_state:
     st.session_state.result_text = ""
 
+# اختيار لغة الرد
 lang_option = st.radio(
     "Select Output Language / اختر لغة الرد:",
     options=["English", "Arabic"],
@@ -65,12 +68,14 @@ def reset_field():
 
 review_text = st.text_area("Enter Customer Review:", key="review_input", height=150)
 
+# تنظيم أبعاد الأزرار
 col1, col2 = st.columns([2, 5])
 with col1:
     evaluate_btn = st.button("Evaluate Review", type="primary")
 with col2:
     st.button("Reset", on_click=reset_field)
 
+# EXACT VERBATIM NOON ARTICLE GUIDELINES
 GUIDELINES = """
 OFFICIAL NOON COMMUNITY GUIDELINES FOR PRODUCT REVIEWS:
 
@@ -102,24 +107,28 @@ if evaluate_btn:
         else:
             if lang_option == "English":
                 lang_instruction = """
-                OUTPUT FORMAT (Use strict Markdown bullet points on separate lines):
-                * **Decision:** [Must be '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
-                * **Main Guideline Section:** [Exact Section title verbatim, or N/A if allowed]
-                * **Specific Sub-rule:** [Exact Point designation and text verbatim, or N/A if allowed]
+                Output the ENTIRE evaluation strictly in English.
+
+                OUTPUT FORMAT TEMPLATE:
+                * **Decision:** [Must be strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
+                * **Main Guideline Section:** [Exact Section number and title verbatim from the article]
+                * **Specific Sub-rule:** [Exact Point designation and text verbatim from the article]
                 * **Comment:** [Explanation text starting directly without any greeting or salutation]
                 """
             else:
                 lang_instruction = """
-                OUTPUT FORMAT (Use strict Markdown bullet points on separate lines in Arabic):
-                * **القرار:** ['✅ مسموح — لا ينبغي إزالته' أو '❌ غير مسموح — ينبغي إزالة المراجعة']
-                * **القسم الرئيسي للإرشادات:** [اسم القسم المخالف، أو N/A إذا كان مسموحاً]
-                * **القاعدة الفرعية:** [النقطة المخالفة، أو N/A إذا كان مسموحاً]
-                * **التعليق:** [شرح مباشر بدون أي مقدمات أو ألقاب]
+                Output the ENTIRE evaluation strictly in clear, professional Arabic. Translate all standard labels and guidelines accurately to Arabic.
+
+                OUTPUT FORMAT TEMPLATE:
+                * **القرار:** [إما '✅ مسموح — لا ينبغي إزالته' أو '❌ غير مسموح — ينبغي إزالة المراجعة']
+                * **القسم الرئيسي للإرشادات:** [ترجمة دقيقة لحجم القسم ورقمه]
+                * **القاعدة الفرعية:** [ترجمة دقيقة للنقطة والمضمون]
+                * **التعليق:** [شرح مهني يبدأ مباشرة بدون أي مقدمة أو ألقاب]
                 """
 
             prompt = f"""
             You are an automated compliance officer for noon evaluating product reviews.
-            Evaluate the customer review strictly based on these rules:
+            Evaluate the customer review based STRICTLY on the official Guidelines Article provided below.
 
             Guidelines Article:
             {GUIDELINES}
@@ -129,24 +138,29 @@ if evaluate_btn:
             {lang_instruction}
 
             EVALUATION RULES:
-            1. Simple negative product ratings (e.g., "Very bad", "Bad product", "Poor quality", "سيء جداً") are 100% ALLOWED.
-            2. Mark NOT ALLOWED under Section 1 - Point 2 ONLY if there are explicit vulgar words, profanity, or insult phrases (e.g., "زبالة", "حرامية", "شتيمة").
-            3. Mark NOT ALLOWED under Section 2 - Point 4 if the product arrived broken, damaged, or destroyed.
-            4. If the review is ALLOWED, set Main Guideline Section and Specific Sub-rule to 'N/A' (or 'لا يوجد').
-            5. Do NOT write greetings or salutations in the Comment.
+            1. Select the correct section and sub-rule matching the official article content.
+            2. Evaluate the review against the article:
+               - If NOT ALLOWED: Select the exact violated Section and Point.
+               - If ALLOWED: Select the closest and most relevant Section and Point from the article, and explicitly explain in the Comment why the review does NOT violate that rule.
+            3. CRITICAL SECURITY RULE: Any review containing vulgar, offensive, or distasteful language MUST be marked as NOT ALLOWED under Section 1 - Point 2.
+            4. CRITICAL DAMAGE RULE: Any review mentioning that the product arrived broken, damaged, crushed, or destroyed (e.g., "مكسور", "خربان", "تالف", "مهلك") MUST be marked as NOT ALLOWED under '2. Seller, Order, or Shipping Feedback' - 'Point 4: Product damage or missing items', regardless of whether the customer expresses hypothetical liking for the product.
+
+            CRITICAL INSTRUCTION FOR COMMENT:
+            - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', 'مرحباً عزيزي البائع' or 'عزيزي البائع'.
+            - Start directly with the professional explanation text.
             """
 
-            # قائمة النماذج المستقرة مع ترتيب أفضليتها
-            preferred_models = [
+            # قائمة بالنماذج الحديثة والنشطة حصراً على Groq حالياً
+            active_models = [
                 "llama-3.3-70b-versatile",
-                "llama3-70b-8192",
-                "mixtral-8x7b-32768"
+                "llama-3.1-8b-instant",
+                "gemma2-9b-it"
             ]
 
             success = False
             last_error = ""
 
-            for model_id in preferred_models:
+            for model_id in active_models:
                 try:
                     response = client.chat.completions.create(
                         model=model_id,
@@ -161,7 +175,7 @@ if evaluate_btn:
                     continue
 
             if not success:
-                st.error(f"Execution Error: {last_error if last_error else 'Unable to process request.'}")
+                st.error(f"Error: {last_error if last_error else 'Could not process using available Groq models.'}")
     else:
         st.warning("Please enter a review first.")
 
@@ -169,6 +183,7 @@ if st.session_state.result_text:
     st.markdown("### Result:")
     st.markdown(st.session_state.result_text)
 
+    # استخراج نص الـ Comment / التعليق فقط لنسخه
     comment_text = ""
     match = re.search(r"(?:Comment|التعليق):\*\*\s*(.*)", st.session_state.result_text, re.DOTALL)
     if not match:
@@ -179,6 +194,7 @@ if st.session_state.result_text:
     else:
         comment_text = st.session_state.result_text
 
+    # تجهيز النص للـ JavaScript
     escaped_comment = comment_text.replace("`", "'").replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
     
     copy_button_html = f"""
@@ -208,6 +224,7 @@ if st.session_state.result_text:
     """
     components.html(copy_button_html, height=65)
 
+    # Fixed Reference Link at the bottom
     st.markdown("---")
     st.markdown("**Guidelines Reference:**")
     st.markdown("https://help.noon.com/portal/en/kb/articles/product-review-guidelines")
