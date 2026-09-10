@@ -123,6 +123,10 @@ api_key = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=api_key) if api_key else None
 
 
+# =========================================================
+# MODELS
+# =========================================================
+
 # Production model
 PRIMARY_MODEL = "openai/gpt-oss-120b"
 
@@ -203,17 +207,12 @@ with col2:
 # =========================================================
 
 GUIDELINES = """
-OFFICIAL NOON PRODUCT REVIEW GUIDELINES:
-
-Product reviews should focus solely on the customer's personal
-experience with the product itself.
-
-WHAT IS NOT ALLOWED:
+OFFICIAL NOON COMMUNITY GUIDELINES FOR PRODUCT REVIEWS:
 
 1. Community Guideline Violations
 
 Point 1: Promotional or advertising content
-Point 2: Offensive, abusive, or illegal language
+Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language
 Point 3: Hate speech or discriminatory remarks
 Point 4: Personal or sensitive information
 
@@ -232,19 +231,23 @@ Point 1: Finding the product cheaper elsewhere or competitor pricing
 Point 2: Stock status, out-of-stock items, or store-level availability
 
 
-4. Conflicts of Interest
+4. Conflicts of Interest & Anti-Manipulation
 
-Point 1: Reviews involving friends, family members, employers,
-employees, business partners, associates, competitors, or
-content about one's own products or services.
-
-Point 2: Reviews posted in exchange for compensation or
-financial incentives.
+Point 1: Written by seller, competitor, employee, friend, family member, or business partner
+Point 2: Posted in exchange for compensation or financial incentive
 """
 
 
 # =========================================================
-# RULE DEFINITIONS
+# CANONICAL RULE DATABASE
+# =========================================================
+#
+# IMPORTANT:
+# Every result MUST use one of these rules.
+# There is NO "NONE" or "NO VIOLATION" rule.
+#
+# For ALLOWED reviews, the system selects the closest
+# relevant existing guideline rule.
 # =========================================================
 
 RULES = {
@@ -260,7 +263,7 @@ RULES = {
         "section_number": 1,
         "section_title": "Community Guideline Violations",
         "point_number": 2,
-        "point_text": "Offensive, abusive, or illegal language"
+        "point_text": "Offensive, abusive, inappropriate, vulgar, or distasteful language"
     },
 
     "1.3": {
@@ -321,16 +324,16 @@ RULES = {
 
     "4.1": {
         "section_number": 4,
-        "section_title": "Conflicts of Interest",
+        "section_title": "Conflicts of Interest & Anti-Manipulation",
         "point_number": 1,
-        "point_text": "Conflict of interest involving related parties or competitors"
+        "point_text": "Written by seller, competitor, employee, friend, family member, or business partner"
     },
 
     "4.2": {
         "section_number": 4,
-        "section_title": "Conflicts of Interest",
+        "section_title": "Conflicts of Interest & Anti-Manipulation",
         "point_number": 2,
-        "point_text": "Review posted in exchange for compensation or financial incentive"
+        "point_text": "Posted in exchange for compensation or financial incentive"
     }
 }
 
@@ -356,7 +359,6 @@ REVIEW_SCHEMA = {
         "rule_id": {
             "type": "string",
             "enum": [
-                "NONE",
                 "1.1",
                 "1.2",
                 "1.3",
@@ -375,7 +377,6 @@ REVIEW_SCHEMA = {
         "section_number": {
             "type": "integer",
             "enum": [
-                0,
                 1,
                 2,
                 3,
@@ -390,7 +391,6 @@ REVIEW_SCHEMA = {
         "point_number": {
             "type": "integer",
             "enum": [
-                0,
                 1,
                 2,
                 3,
@@ -438,24 +438,24 @@ def get_language_instruction():
 Return all textual fields in clear, professional English.
 
 The decision field MUST remain exactly:
+
 ALLOWED
 or
 NOT_ALLOWED.
-
-The rule_id MUST remain exactly one of the supplied rule IDs.
 
 Do not use Arabic in the output.
 """
 
-    return """
+    else:
+
+        return """
 Return all textual fields in clear, professional Arabic.
 
 The decision field MUST remain exactly:
+
 ALLOWED
 or
 NOT_ALLOWED.
-
-The rule_id MUST remain exactly one of the supplied rule IDs.
 
 Translate the section title, point text, reason and comment into
 professional Arabic.
@@ -489,115 +489,105 @@ CUSTOMER REVIEW
 "{review}"
 
 ============================================================
-INDEPENDENT RULE ENGINE
+RULE ENGINE INFORMATION
 ============================================================
 
 The application has independently checked the review.
 
 Rule engine result:
 
-{json.dumps(rule_engine_result, ensure_ascii=False, indent=2)}
-
-If the rule engine identifies a confirmed violation, you MUST use
-that violation.
-
-You MUST NOT change a confirmed violation to ALLOWED.
-
-============================================================
-CRITICAL PRICE RULE
-============================================================
-
-Section 3 - Point 1 is a VIOLATION.
-
-The following are NOT_ALLOWED:
-
-- "Found it cheaper elsewhere."
-- "Found it cheaper."
-- "I found this cheaper somewhere else."
-- "It is cheaper on another website."
-- "The same product is cheaper at another store."
-- "I found a lower price from another seller."
-- "It's cheaper online."
-- "It's cheaper on Amazon."
-- "It's cheaper on another marketplace."
-- "وجدته بسعر أرخص"
-- "وجدتها بسعر أرخص"
-- "لقيته بسعر أرخص"
-- "لقيتها بسعر أرخص"
-- "وجدته أرخص"
-- "لقيته أرخص"
-- "ارخص في مكان اخر"
-- "ارخص في محل اخر"
-- "ارخص عند بائع اخر"
+{json.dumps(rule_engine_result, ensure_ascii=False)}
 
 IMPORTANT:
 
-Even if the customer does NOT explicitly mention another store,
-website, seller, or competitor, phrases such as:
+If the rule engine identifies a confirmed violation,
+you MUST classify the review as NOT_ALLOWED.
 
-"Found it cheaper"
-"وجدته بسعر أرخص"
-"لقيته أرخص"
+You MUST NOT override a confirmed rule-engine violation.
 
-indicate that the customer found the same product at a lower price
-elsewhere and MUST be classified as:
+If the rule engine identifies no confirmed violation,
+perform a complete contextual evaluation yourself.
+
+============================================================
+CRITICAL RULE FOR PRICE COMMENTS
+============================================================
+
+Section 3 - Point 1 applies when the review says or clearly means:
+
+"Found it cheaper elsewhere"
+
+"Found this product cheaper somewhere else"
+
+"It is cheaper on another website"
+
+"I found a lower price elsewhere"
+
+"The same product is cheaper at another store"
+
+or any equivalent statement comparing the product price
+with another store, website, seller, marketplace, or competitor.
+
+These reviews are:
 
 NOT_ALLOWED
 
-Rule ID:
-3.1
+Section 3
+Point 1
 
-Section:
-Comments About Pricing or Availability
+Finding the product cheaper elsewhere or competitor pricing
 
-Point:
-Finding the product cheaper elsewhere or competitor pricing.
+IMPORTANT:
 
-============================================================
-PRICE COMMENTS THAT ARE ALLOWED
-============================================================
-
-Do NOT remove ordinary opinions about price or value when there
-is NO comparison with another store, website, seller, marketplace,
-or competitor.
+A normal opinion about price is NOT automatically a violation.
 
 Examples:
 
-- "Good value for money."
-- "Great quality for the price."
-- "The price is reasonable."
-- "The price is too high."
-- "The price is expensive."
-- "Not worth the price."
-- "غالي بالنسبة للجودة"
-- "السعر غالي"
-- "السعر مناسب"
-- "قيمة جيدة مقابل السعر"
+"The price is high."
+→ ALLOWED
 
-These are ALLOWED unless another guideline is violated.
+"Too expensive."
+→ ALLOWED
+
+"I think it is overpriced."
+→ ALLOWED
+
+"Not worth the price."
+→ ALLOWED
+
+"Great quality for the price."
+→ ALLOWED
+
+Only classify under Section 3 Point 1 as NOT_ALLOWED when the
+customer is actually comparing the price with another place,
+seller, website, store, or competitor, or clearly says they
+found it cheaper elsewhere.
 
 ============================================================
-PRODUCT OPINIONS
+IMPORTANT CLASSIFICATION RULES
 ============================================================
+
+1. PRODUCT OPINIONS
 
 Normal opinions about the product itself are ALLOWED unless they
 violate one of the official guidelines.
 
 Examples:
 
-- "I don't like it."
-- "The product is not good."
-- "It doesn't work."
-- "The battery is weak."
-- "The quality is poor."
-- "I expected better."
-- "The color is not nice."
+"I don't like it."
+"The product is not good."
+"It doesn't work."
+"The battery is weak."
+"The quality is poor."
+"I expected better."
+"The color is not nice."
 
 Do NOT classify a normal product complaint as seller feedback.
 
-============================================================
-PRODUCT DAMAGE
-============================================================
+Do NOT invent a violation.
+
+------------------------------------------------------------
+
+2. PRODUCT DAMAGE
 
 If the review clearly says that the physical product arrived:
 
@@ -617,26 +607,24 @@ classify it as:
 
 NOT_ALLOWED
 
-Rule ID:
-2.4
+Rule ID: 2.4
 
-============================================================
-MISSING ITEM
-============================================================
+------------------------------------------------------------
 
-If the customer clearly says that an item, component, accessory,
-or part was missing from the order, classify it as:
+3. MISSING ITEM
+
+If the customer clearly says that an item, component,
+accessory, or part was missing from the order, classify it as:
 
 NOT_ALLOWED
 
-Rule ID:
-2.4
+Rule ID: 2.4
 
-============================================================
-SELLER FEEDBACK
-============================================================
+------------------------------------------------------------
 
-If the review is specifically about:
+4. SELLER FEEDBACK
+
+If the review specifically discusses:
 
 - seller behavior
 - seller performance
@@ -647,12 +635,11 @@ classify it as:
 
 NOT_ALLOWED
 
-Rule ID:
-2.1
+Rule ID: 2.1
 
-============================================================
-ORDER / RETURN EXPERIENCE
-============================================================
+------------------------------------------------------------
+
+5. ORDER / RETURN EXPERIENCE
 
 If the review specifically discusses:
 
@@ -665,12 +652,11 @@ classify it as:
 
 NOT_ALLOWED
 
-Rule ID:
-2.2
+Rule ID: 2.2
 
-============================================================
-SHIPPING / DELIVERY / PACKAGING
-============================================================
+------------------------------------------------------------
+
+6. SHIPPING / DELIVERY / PACKAGING
 
 If the review specifically complains about:
 
@@ -684,149 +670,226 @@ classify it as:
 
 NOT_ALLOWED
 
-Rule ID:
-2.3
+Rule ID: 2.3
 
-============================================================
-AVAILABILITY
-============================================================
+------------------------------------------------------------
 
-If the review is specifically about:
+7. PRICE
+
+Use Rule ID 3.1 when:
+
+- the customer found the same product cheaper elsewhere
+- the customer compares the price with another seller
+- the customer compares the price with another store
+- the customer compares the price with another website
+- the customer mentions a competitor's lower price
+
+This is NOT_ALLOWED.
+
+However, general product value opinions are ALLOWED.
+
+Examples:
+
+"Good value for money."
+→ ALLOWED
+
+"Expensive."
+→ ALLOWED
+
+"Too expensive for the quality."
+→ ALLOWED
+
+"Found the same item cheaper elsewhere."
+→ NOT_ALLOWED
+
+------------------------------------------------------------
+
+8. AVAILABILITY
+
+If the review is about:
 
 - out of stock
 - unavailable
-- stock status
 - store availability
 - product availability
+- stock status
 
 classify it as:
 
 NOT_ALLOWED
 
-Rule ID:
-3.2
+Rule ID: 3.2
 
-General wishes about availability are allowed.
+However:
 
-Example:
+"I hope it comes in more colors."
 
-"Hope it comes in more colors."
+is ALLOWED because it expresses a general wish and does not
+state the current stock status.
 
-This is ALLOWED.
+------------------------------------------------------------
 
-============================================================
-PROMOTIONAL CONTENT
-============================================================
+9. PROMOTIONAL CONTENT
 
-If the review contains advertising, promotional, marketing,
-discount codes, contact information intended for promotion,
-or attempts to direct customers to another business, classify it as:
+If the review contains advertising, promotional or marketing
+content, classify it as:
 
 NOT_ALLOWED
 
-Rule ID:
-1.1
+Rule ID: 1.1
 
-============================================================
-OFFENSIVE LANGUAGE
-============================================================
+------------------------------------------------------------
+
+10. OFFENSIVE LANGUAGE
 
 If the review contains clearly vulgar, abusive, offensive,
-inappropriate, or illegal language, classify it as:
+inappropriate, or distasteful language, classify it as:
 
 NOT_ALLOWED
 
-Rule ID:
-1.2
+Rule ID: 1.2
 
-Do NOT mark ordinary negative opinions as offensive.
+Do not mark ordinary negative opinions as offensive.
 
-============================================================
-HATE SPEECH
-============================================================
+------------------------------------------------------------
+
+11. HATE SPEECH
 
 If the review contains hate speech or discriminatory remarks,
 classify it as:
 
 NOT_ALLOWED
 
-Rule ID:
-1.3
+Rule ID: 1.3
 
-============================================================
-PERSONAL INFORMATION
-============================================================
+------------------------------------------------------------
+
+12. PERSONAL INFORMATION
 
 If the review exposes personal or sensitive information,
 classify it as:
 
 NOT_ALLOWED
 
-Rule ID:
-1.4
+Rule ID: 1.4
 
-============================================================
-CONFLICT OF INTEREST
-============================================================
+------------------------------------------------------------
 
-Only classify under Section 4 when there is actual evidence or
-a clear statement indicating a conflict involving:
+13. CONFLICT OF INTEREST
+
+Classify under Section 4 only when there is actual evidence
+or a clear statement indicating:
 
 - seller
 - competitor
 - employee
-- employer
 - friend
 - family member
 - business partner
-- associate
 
-or when the review was posted in exchange for compensation
+or that the review was posted in exchange for compensation
 or a financial incentive.
 
 Do NOT assume a conflict of interest without evidence.
 
-Rule ID:
-4.1 or 4.2
+Use:
 
-============================================================
-ALLOWED REVIEWS
-============================================================
+4.1 = relationship/conflict of interest
+
+4.2 = compensation or financial incentive
+
+------------------------------------------------------------
+
+14. ALLOWED REVIEWS
 
 If the review does not violate any official guideline:
 
 decision = ALLOWED
 
-rule_id = NONE
+IMPORTANT:
 
-section_number = 0
+You MUST STILL select the MOST RELEVANT EXISTING guideline
+Section and Point.
 
-point_number = 0
+NEVER use:
 
-section_title = "No violation"
+- NONE
+- NO VIOLATION
+- No guideline violation
+- No applicable violation
+- N/A
+- 0
+- empty section
+- empty point
 
-point_text = "No guideline violation identified"
+Every result MUST contain one of the valid Rule IDs:
 
-The reason and comment MUST clearly state that the review does
-not violate the official guidelines.
+1.1
+1.2
+1.3
+1.4
+2.1
+2.2
+2.3
+2.4
+3.1
+3.2
+4.1
+4.2
 
-============================================================
-DO NOT INVENT RULES
-============================================================
+The selected Section and Point do NOT mean that the review
+violates that rule when the decision is ALLOWED.
+
+They only represent the closest relevant guideline category.
+
+The reason and comment MUST clearly explain that the review
+is ALLOWED and does not violate the selected guideline.
+
+------------------------------------------------------------
+
+15. RULE CONSISTENCY
+
+The Rule ID determines the correct Section and Point.
+
+The following mappings are mandatory:
+
+1.1 → Section 1, Point 1
+1.2 → Section 1, Point 2
+1.3 → Section 1, Point 3
+1.4 → Section 1, Point 4
+
+2.1 → Section 2, Point 1
+2.2 → Section 2, Point 2
+2.3 → Section 2, Point 3
+2.4 → Section 2, Point 4
+
+3.1 → Section 3, Point 1
+3.2 → Section 3, Point 2
+
+4.1 → Section 4, Point 1
+4.2 → Section 4, Point 2
+
+Do not create a different mapping.
+
+------------------------------------------------------------
+
+16. DO NOT INVENT RULES
 
 You MUST NOT create a new guideline.
 
-You MUST select only from the official rules listed above.
+You MUST select the Section and Point from the official
+noon guidelines only.
 
-============================================================
-COMMENT REQUIREMENTS
-============================================================
+------------------------------------------------------------
+
+17. COMMENT
 
 The comment must:
 
 - directly explain the decision
 - be professional
 - be concise
+- be specific to the review
 - contain no greeting
 - contain no salutation
 - not start with "Dear Seller"
@@ -847,43 +910,27 @@ LANGUAGE
 
 
 # =========================================================
-# TEXT NORMALIZATION
+# NORMALIZE TEXT
 # =========================================================
 
 def normalize_text(text):
 
-    text = str(text).lower().strip()
+    text = text.lower().strip()
 
-    # Remove Arabic diacritics
-    text = re.sub(
-        r"[\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06ED]",
-        "",
-        text
-    )
-
-    # Normalize Arabic letter variants
-    replacements = {
-        "أ": "ا",
-        "إ": "ا",
-        "آ": "ا",
-        "ٱ": "ا",
-        "ى": "ي",
-        "ة": "ه"
-    }
-
-    for old, new in replacements.items():
-        text = text.replace(old, new)
+    # Normalize Arabic characters
+    text = text.replace("أ", "ا")
+    text = text.replace("إ", "ا")
+    text = text.replace("آ", "ا")
+    text = text.replace("ى", "ي")
+    text = text.replace("ة", "ه")
 
     # Normalize punctuation
-    text = text.replace("،", " ")
-    text = text.replace("؛", " ")
-    text = text.replace("؟", " ")
-    text = text.replace("ـ", "")
+    text = re.sub(r"[،,؛;]", " ", text)
 
-    # Normalize whitespace
+    # Normalize spaces
     text = re.sub(r"\s+", " ", text)
 
-    return text.strip()
+    return text
 
 
 # =========================================================
@@ -898,7 +945,7 @@ def detect_hard_rules(review):
 
 
     # =====================================================
-    # 2.4 PRODUCT DAMAGE
+    # PRODUCT DAMAGE
     # =====================================================
 
     damage_patterns = [
@@ -910,11 +957,12 @@ def detect_hard_rules(review):
         r"\bcracked\b",
         r"\bphysically damaged\b",
 
-        "مكسور",
-        "تالف",
-        "خربان",
-        "مهلك",
-        "متهالك"
+        r"\bmكسور\b",
+        r"\bمكسور\b",
+        r"\bتالف\b",
+        r"\bخربان\b",
+        r"\bمهلك\b",
+        r"\bمتهالك\b"
     ]
 
     if any(
@@ -923,15 +971,15 @@ def detect_hard_rules(review):
     ):
 
         violations.append({
-            "rule_id": "2.4",
             "type": "PRODUCT_DAMAGE",
             "decision": "NOT_ALLOWED",
+            "rule_id": "2.4",
             **RULES["2.4"]
         })
 
 
     # =====================================================
-    # 2.4 MISSING ITEM
+    # MISSING ITEM
     # =====================================================
 
     missing_patterns = [
@@ -944,11 +992,10 @@ def detect_hard_rules(review):
         r"\bmissing accessory\b",
         r"\bmissing accessories\b",
 
-        "ناقص",
-        "ناقصه",
-        "جزء ناقص",
-        "قطعه ناقصه",
-        "قطعه ناقصه"
+        r"\bناقص\b",
+        r"\bناقصه\b",
+        r"\bجزء ناقص\b",
+        r"\bقطعه ناقصه\b"
     ]
 
     if any(
@@ -957,68 +1004,52 @@ def detect_hard_rules(review):
     ):
 
         violations.append({
-            "rule_id": "2.4",
             "type": "MISSING_ITEM",
             "decision": "NOT_ALLOWED",
+            "rule_id": "2.4",
             **RULES["2.4"]
         })
 
 
     # =====================================================
-    # 3.1 PRICE / COMPETITOR PRICING
+    # PRICE / COMPETITOR
+    # =====================================================
+    #
+    # IMPORTANT:
+    # Only clear price comparisons are hard violations.
+    # General "expensive" comments remain ALLOWED.
     # =====================================================
 
     price_patterns = [
 
-        # English
         r"\bcheaper elsewhere\b",
         r"\bcheaper somewhere else\b",
-        r"\bcheaper on another website\b",
-        r"\bcheaper on another store\b",
-        r"\bcheaper from another seller\b",
-        r"\bcheaper at another store\b",
-        r"\bfound it cheaper\b",
-        r"\bfound this cheaper\b",
+        r"\bcheaper on another\b",
+        r"\bcheaper at another\b",
+        r"\bcheaper from another\b",
+        r"\bcheaper on a different\b",
+
         r"\bfound it cheaper elsewhere\b",
-        r"\bfound this cheaper elsewhere\b",
+        r"\bfound it cheaper somewhere else\b",
+        r"\bfound the same product cheaper\b",
+        r"\bfound the same item cheaper\b",
+
         r"\blower price elsewhere\b",
         r"\blower price somewhere else\b",
-        r"\bmore expensive here\b",
-        r"\bcheaper than here\b",
+        r"\blower price at another\b",
+        r"\blower price on another\b",
+
+        r"\bmore expensive here than\b",
+        r"\bmore expensive than\b",
         r"\bcheaper than noon\b",
-        r"\bcheaper online\b",
-        r"\bcheaper on amazon\b",
-        r"\bcheaper on another marketplace\b",
 
-        # Arabic
-        "ارخص في مكان اخر",
-        "ارخص في مكان آخر",
-        "ارخص بمكان اخر",
-        "ارخص بمكان آخر",
-        "ارخص في محل اخر",
-        "ارخص في محل آخر",
-        "ارخص عند بائع اخر",
-        "ارخص عند بائع آخر",
-        "ارخص عند غيركم",
-        "ارخص برا",
-
-        "سعره ارخص",
-        "سعرها ارخص",
-
-        "وجدته ارخص",
-        "وجدتها ارخص",
-        "وجدته بسعر ارخص",
-        "وجدتها بسعر ارخص",
-
-        "لقيته ارخص",
-        "لقيتها ارخص",
-        "لقيته بسعر ارخص",
-        "لقيتها بسعر ارخص",
-
-        "سعر اقل في مكان اخر",
-        "سعر اقل في مكان آخر",
-        "سعر اقل في محل اخر",
-        "سعر اقل في محل آخر"
+        r"\bارخص في مكان اخر\b",
+        r"\bارخص في مكان اخر\b",
+        r"\bارخص برا\b",
+        r"\bسعره ارخص في مكان اخر\b",
+        r"\bلقيته ارخص في مكان اخر\b",
+        r"\bلقيته ارخص برا\b",
+        r"\bنفس المنتج ارخص\b"
     ]
 
     if any(
@@ -1027,32 +1058,31 @@ def detect_hard_rules(review):
     ):
 
         violations.append({
-            "rule_id": "3.1",
-            "type": "COMPETITOR_PRICE",
+            "type": "PRICE_COMPARISON",
             "decision": "NOT_ALLOWED",
+            "rule_id": "3.1",
             **RULES["3.1"]
         })
 
 
     # =====================================================
-    # 3.2 AVAILABILITY
+    # AVAILABILITY
     # =====================================================
 
     availability_patterns = [
 
         r"\bout of stock\b",
         r"\bout-of-stock\b",
-        r"\bnot available\b",
         r"\bunavailable\b",
+        r"\bnot available\b",
+        r"\bcurrently unavailable\b",
         r"\bno stock\b",
+        r"\bno longer available\b",
 
-        "غير متوفر",
-        "غير متاح",
-        "نفذ من المخزون",
-        "خلص من المخزون",
-        "نفد المخزون",
-        "المخزون خلص",
-        "غير موجود بالمخزون"
+        r"\bغير متوفر\b",
+        r"\bغير متاح\b",
+        r"\bنفذ من المخزون\b",
+        r"\bخلص من المخزون\b"
     ]
 
     if any(
@@ -1061,9 +1091,9 @@ def detect_hard_rules(review):
     ):
 
         violations.append({
-            "rule_id": "3.2",
             "type": "AVAILABILITY",
             "decision": "NOT_ALLOWED",
+            "rule_id": "3.2",
             **RULES["3.2"]
         })
 
@@ -1077,6 +1107,12 @@ def detect_hard_rules(review):
 
 def call_model(model, prompt):
 
+    if not client:
+
+        raise RuntimeError(
+            "Groq client is not configured."
+        )
+
     response = client.chat.completions.create(
 
         model=model,
@@ -1085,9 +1121,11 @@ def call_model(model, prompt):
             {
                 "role": "system",
                 "content": (
-                    "You are a strict and highly accurate product review "
-                    "moderation classifier. Follow the supplied noon "
-                    "guidelines exactly. Never invent rules."
+                    "You are a strict and highly accurate product "
+                    "review moderation classifier. "
+                    "Follow the supplied noon guidelines exactly. "
+                    "Never invent rules. "
+                    "Every result must contain a valid Rule ID."
                 )
             },
             {
@@ -1098,7 +1136,7 @@ def call_model(model, prompt):
 
         temperature=0,
 
-        max_tokens=1000,
+        max_tokens=1200,
 
         reasoning_effort="medium",
 
@@ -1113,6 +1151,12 @@ def call_model(model, prompt):
     )
 
     content = response.choices[0].message.content
+
+    if not content:
+
+        raise ValueError(
+            "Empty response received from the model."
+        )
 
     return json.loads(content)
 
@@ -1130,8 +1174,10 @@ def evaluate_with_reliability(prompt):
 
     last_error = None
 
+
     for model in models:
 
+        # Try each model up to 2 times
         for attempt in range(2):
 
             try:
@@ -1143,6 +1189,7 @@ def evaluate_with_reliability(prompt):
 
                 return result, model
 
+
             except Exception as e:
 
                 last_error = e
@@ -1150,23 +1197,23 @@ def evaluate_with_reliability(prompt):
                 error_text = str(e).lower()
 
 
-                # -------------------------------------------------
-                # MODEL DECOMMISSION / NOT FOUND
-                # -------------------------------------------------
+                # =================================================
+                # MODEL DECOMMISSIONED / NOT FOUND
+                # =================================================
 
                 if (
                     "decommissioned" in error_text
                     or "model_not_found" in error_text
                     or "model not found" in error_text
-                    or "invalid model" in error_text
+                    or "does not exist" in error_text
                 ):
 
                     break
 
 
-                # -------------------------------------------------
+                # =================================================
                 # RATE LIMIT / TEMPORARY ERROR
-                # -------------------------------------------------
+                # =================================================
 
                 if (
                     "429" in error_text
@@ -1178,21 +1225,33 @@ def evaluate_with_reliability(prompt):
                     or "500" in error_text
                 ):
 
-                    time.sleep(2 ** attempt)
+                    if attempt < 1:
 
-                    continue
+                        time.sleep(
+                            2 ** attempt
+                        )
+
+                        continue
+
+                    break
 
 
-                # -------------------------------------------------
-                # OTHER ERRORS
-                # -------------------------------------------------
+                # =================================================
+                # OTHER ERROR
+                # =================================================
 
                 if attempt == 1:
 
                     break
 
 
-    raise last_error
+    if last_error:
+
+        raise last_error
+
+    raise RuntimeError(
+        "Unable to evaluate the review."
+    )
 
 
 # =========================================================
@@ -1214,6 +1273,11 @@ def validate_result(result):
 
     ]
 
+
+    # ---------------------------------------------------------
+    # REQUIRED FIELDS
+    # ---------------------------------------------------------
+
     for field in required_fields:
 
         if field not in result:
@@ -1222,6 +1286,10 @@ def validate_result(result):
                 f"Missing field from AI response: {field}"
             )
 
+
+    # ---------------------------------------------------------
+    # DECISION
+    # ---------------------------------------------------------
 
     if result["decision"] not in [
         "ALLOWED",
@@ -1233,68 +1301,49 @@ def validate_result(result):
         )
 
 
-    valid_rule_ids = {
-        "NONE",
-        "1.1",
-        "1.2",
-        "1.3",
-        "1.4",
-        "2.1",
-        "2.2",
-        "2.3",
-        "2.4",
-        "3.1",
-        "3.2",
-        "4.1",
-        "4.2"
-    }
+    # ---------------------------------------------------------
+    # RULE ID
+    # ---------------------------------------------------------
 
-    if result["rule_id"] not in valid_rule_ids:
+    if result["rule_id"] not in RULES:
 
         raise ValueError(
-            "Invalid rule ID returned by AI."
+            "Every result must contain a valid guideline Rule ID."
         )
 
 
     # ---------------------------------------------------------
-    # ALLOWED RESULT VALIDATION
+    # RULE CONSISTENCY
     # ---------------------------------------------------------
 
-    if result["decision"] == "ALLOWED":
+    expected_rule = RULES[
+        result["rule_id"]
+    ]
 
-        if result["rule_id"] != "NONE":
 
-            raise ValueError(
-                "Allowed result must use rule_id NONE."
-            )
+    if (
+        result["section_number"]
+        != expected_rule["section_number"]
+    ):
+
+        raise ValueError(
+            "Section number does not match the Rule ID."
+        )
+
+
+    if (
+        result["point_number"]
+        != expected_rule["point_number"]
+    ):
+
+        raise ValueError(
+            "Point number does not match the Rule ID."
+        )
 
 
     # ---------------------------------------------------------
-    # NOT ALLOWED RESULT VALIDATION
+    # COMMENT
     # ---------------------------------------------------------
-
-    if result["decision"] == "NOT_ALLOWED":
-
-        if result["rule_id"] == "NONE":
-
-            raise ValueError(
-                "Not allowed result must have a valid rule ID."
-            )
-
-        rule = RULES[result["rule_id"]]
-
-        if result["section_number"] != rule["section_number"]:
-
-            raise ValueError(
-                "Section number does not match rule ID."
-            )
-
-        if result["point_number"] != rule["point_number"]:
-
-            raise ValueError(
-                "Point number does not match rule ID."
-            )
-
 
     if not result["comment"].strip():
 
@@ -1303,58 +1352,58 @@ def validate_result(result):
         )
 
 
+    # ---------------------------------------------------------
+    # REASON
+    # ---------------------------------------------------------
+
+    if not result["reason"].strip():
+
+        raise ValueError(
+            "Empty reason returned by AI."
+        )
+
+
     return True
 
 
 # =========================================================
-# LANGUAGE TEXT FOR HARD RULES
+# ENFORCE RULE CONSISTENCY
 # =========================================================
 
-def hard_rule_comment(rule_id):
+def enforce_rule_consistency(result):
 
-    if lang_option == "English":
+    rule_id = result["rule_id"]
 
-        comments = {
+    if rule_id not in RULES:
 
-            "2.4":
-                "The review describes product damage or a missing item, "
-                "which is not allowed under the product review guidelines.",
-
-            "3.1":
-                "The review states or indicates that the product was found "
-                "at a cheaper price, which is not allowed under the pricing "
-                "and availability guidelines.",
-
-            "3.2":
-                "The review comments on stock status or product availability, "
-                "which is not allowed under the pricing and availability guidelines."
-        }
-
-        return comments.get(
-            rule_id,
-            "The review violates the applicable product review guideline."
+        raise ValueError(
+            "The result must contain a valid guideline Rule ID."
         )
 
+    rule = RULES[rule_id]
 
-    comments = {
 
-        "2.4":
-            "توضح المراجعة وجود تلف في المنتج أو وجود عنصر مفقود، "
-            "وهو أمر غير مسموح به وفقًا لإرشادات مراجعات المنتجات.",
+    # The canonical RULES database is the source of truth.
+    # The AI cannot change the Section/Point text.
 
-        "3.1":
-            "توضح المراجعة أن المنتج تم العثور عليه بسعر أقل، "
-            "وهو أمر غير مسموح به وفقًا لإرشادات السعر والتوفر.",
+    result["section_number"] = rule[
+        "section_number"
+    ]
 
-        "3.2":
-            "تتعلق المراجعة بحالة المخزون أو توفر المنتج، "
-            "وهو أمر غير مسموح به وفقًا لإرشادات السعر والتوفر."
-    }
+    result["section_title"] = rule[
+        "section_title"
+    ]
 
-    return comments.get(
-        rule_id,
-        "تخالف المراجعة إرشادات مراجعات المنتجات المعمول بها."
-    )
+    result["point_number"] = rule[
+        "point_number"
+    ]
+
+    result["point_text"] = rule[
+        "point_text"
+    ]
+
+
+    return result
 
 
 # =========================================================
@@ -1368,14 +1417,9 @@ def apply_hard_rules(ai_result, hard_rules):
         return ai_result
 
 
-    # =====================================================
-    # PRIORITY
-    # =====================================================
-    #
-    # If multiple confirmed violations exist, use the first
-    # detected rule. The deterministic engine has already
-    # identified a confirmed violation.
-    #
+    # ---------------------------------------------------------
+    # Confirmed deterministic violation
+    # ---------------------------------------------------------
 
     rule = hard_rules[0]
 
@@ -1385,57 +1429,204 @@ def apply_hard_rules(ai_result, hard_rules):
 
     ai_result["rule_id"] = rule_id
 
-    ai_result["section_number"] = rule["section_number"]
+    ai_result["section_number"] = rule[
+        "section_number"
+    ]
 
-    ai_result["section_title"] = rule["section_title"]
+    ai_result["section_title"] = rule[
+        "section_title"
+    ]
 
-    ai_result["point_number"] = rule["point_number"]
+    ai_result["point_number"] = rule[
+        "point_number"
+    ]
 
-    ai_result["point_text"] = rule["point_text"]
+    ai_result["point_text"] = rule[
+        "point_text"
+    ]
 
-    ai_result["reason"] = hard_rule_comment(
-        rule_id
-    )
 
-    ai_result["comment"] = hard_rule_comment(
-        rule_id
-    )
+    # ---------------------------------------------------------
+    # Make sure the comment reflects the hard rule
+    # ---------------------------------------------------------
+
+    if rule_id == "3.1":
+
+        if lang_option == "English":
+
+            ai_result["comment"] = (
+                "The review states that the product was found "
+                "cheaper elsewhere or compares its price with "
+                "another seller, store, website, or competitor. "
+                "This is not allowed under Section 3, Point 1."
+            )
+
+        else:
+
+            ai_result["comment"] = (
+                "توضح المراجعة أن المنتج تم العثور عليه بسعر "
+                "أقل في مكان آخر أو تقارن سعره بسعر بائع أو متجر "
+                "أو موقع أو منافس آخر، ولذلك فهي غير مسموحة وفقًا "
+                "للقسم 3، النقطة 1."
+            )
+
+
+    elif rule_id == "3.2":
+
+        if lang_option == "English":
+
+            ai_result["comment"] = (
+                "The review comments on product or store "
+                "availability or stock status, which is not "
+                "allowed under Section 3, Point 2."
+            )
+
+        else:
+
+            ai_result["comment"] = (
+                "تتعلق المراجعة بتوفر المنتج أو حالة المخزون، "
+                "وهو أمر غير مسموح به وفقًا للقسم 3، النقطة 2."
+            )
+
+
+    elif rule_id == "2.4":
+
+        if lang_option == "English":
+
+            ai_result["comment"] = (
+                "The review reports product damage or a missing "
+                "item/component, which is not allowed under "
+                "Section 2, Point 4."
+            )
+
+        else:
+
+            ai_result["comment"] = (
+                "تشير المراجعة إلى تلف المنتج أو وجود عنصر أو "
+                "جزء مفقود، وهو أمر غير مسموح به وفقًا للقسم 2، "
+                "النقطة 4."
+            )
+
 
     return ai_result
 
 
 # =========================================================
-# VALIDATE HARD RULE AGAINST AI
+# FINAL SAFETY CHECK
 # =========================================================
 
-def enforce_rule_consistency(result):
+def final_safety_check(result):
 
-    rule_id = result["rule_id"]
+    # ---------------------------------------------------------
+    # NEVER allow fake / empty guideline values
+    # ---------------------------------------------------------
 
-    if result["decision"] == "NOT_ALLOWED":
+    forbidden_values = [
 
-        if rule_id not in RULES:
+        "none",
+        "no violation",
+        "no guideline violation",
+        "no applicable violation",
+        "n/a",
+        "not applicable",
+        ""
 
-            raise ValueError(
-                "Invalid rule mapping."
-            )
+    ]
 
-        rule = RULES[rule_id]
 
-        result["section_number"] = rule["section_number"]
-        result["section_title"] = rule["section_title"]
-        result["point_number"] = rule["point_number"]
-        result["point_text"] = rule["point_text"]
+    section_title = str(
+        result.get("section_title", "")
+    ).strip().lower()
 
-    else:
+    point_text = str(
+        result.get("point_text", "")
+    ).strip().lower()
 
-        result["rule_id"] = "NONE"
-        result["section_number"] = 0
-        result["section_title"] = "No violation"
-        result["point_number"] = 0
-        result["point_text"] = "No guideline violation identified"
+
+    if section_title in forbidden_values:
+
+        raise ValueError(
+            "Invalid guideline section returned."
+        )
+
+
+    if point_text in forbidden_values:
+
+        raise ValueError(
+            "Invalid guideline point returned."
+        )
+
+
+    # ---------------------------------------------------------
+    # Rule ID must always exist
+    # ---------------------------------------------------------
+
+    if result.get("rule_id") not in RULES:
+
+        raise ValueError(
+            "Invalid or missing Rule ID."
+        )
+
+
+    # ---------------------------------------------------------
+    # Force canonical rule values one final time
+    # ---------------------------------------------------------
+
+    rule = RULES[
+        result["rule_id"]
+    ]
+
+
+    result["section_number"] = rule[
+        "section_number"
+    ]
+
+    result["section_title"] = rule[
+        "section_title"
+    ]
+
+    result["point_number"] = rule[
+        "point_number"
+    ]
+
+    result["point_text"] = rule[
+        "point_text"
+    ]
+
 
     return result
+
+
+# =========================================================
+# REMOVE GREETINGS
+# =========================================================
+
+def clean_comment(comment):
+
+    comment = comment.strip()
+
+
+    # English greetings
+
+    comment = re.sub(
+        r"^(dear seller[,:\s]*|hi[,:\s]*|hello[,:\s]*|dear[,:\s]*)",
+        "",
+        comment,
+        flags=re.IGNORECASE
+    )
+
+
+    # Arabic greetings
+
+    comment = re.sub(
+        r"^(عزيزي البائع[,:\s]*|عزيزي[,:\s]*|مرحبا[,:\s]*|مرحباً[,:\s]*)",
+        "",
+        comment,
+        flags=re.IGNORECASE
+    )
+
+
+    return comment.strip()
 
 
 # =========================================================
@@ -1449,36 +1640,25 @@ def format_result(result):
     rule_id = result["rule_id"]
 
     section_number = result["section_number"]
+
     section_title = result["section_title"]
 
     point_number = result["point_number"]
+
     point_text = result["point_text"]
 
-    comment = result["comment"].strip()
-
-
-    # ---------------------------------------------------------
-    # Remove accidental greetings
-    # ---------------------------------------------------------
-
-    comment = re.sub(
-        r"^(dear seller[,:\s]*|hi[,:\s]*|hello[,:\s]*|dear[,:\s]*)",
-        "",
-        comment,
-        flags=re.IGNORECASE
+    reason = clean_comment(
+        result["reason"]
     )
 
-    comment = re.sub(
-        r"^(عزيزي البائع[,:\s]*|مرحبا[,:\s]*|مرحباً[,:\s]*)",
-        "",
-        comment,
-        flags=re.IGNORECASE
+    comment = clean_comment(
+        result["comment"]
     )
 
 
-    # =========================================================
+    # =====================================================
     # ENGLISH
-    # =========================================================
+    # =====================================================
 
     if lang_option == "English":
 
@@ -1488,26 +1668,10 @@ def format_result(result):
                 "✅ Allowed — it should not be removed"
             )
 
-            section_text = (
-                "No guideline violation identified"
-            )
-
-            point_text_display = (
-                "No applicable violation"
-            )
-
         else:
 
             decision_text = (
                 "❌ Not allowed — the review should be removed"
-            )
-
-            section_text = (
-                f"{section_number}. {section_title}"
-            )
-
-            point_text_display = (
-                f"Point {point_number}: {point_text}"
             )
 
 
@@ -1516,48 +1680,48 @@ def format_result(result):
 
 **Rule ID:** {rule_id}
 
-**Main Guideline Section:** {section_text}
+**Main Guideline Section:** {section_number}. {section_title}
 
-**Specific Sub-rule:** {point_text_display}
+**Specific Sub-rule:** Point {point_number}: {point_text}
+
+**Reason:** {reason}
 
 **Comment:** {comment}
 """
 
 
-    # =========================================================
+    # =====================================================
     # ARABIC
-    # =========================================================
-
-    if decision == "ALLOWED":
-
-        decision_text = (
-            "✅ مسموح — لا ينبغي إزالته"
-        )
-
-        section_text = (
-            "لا توجد مخالفة لإرشادات المراجعات"
-        )
-
-        point_text_display = (
-            "لا توجد مخالفة تنطبق على المراجعة"
-        )
+    # =====================================================
 
     else:
 
-        decision_text = (
-            "❌ غير مسموح — ينبغي إزالة المراجعة"
-        )
+        if decision == "ALLOWED":
+
+            decision_text = (
+                "✅ مسموح — لا ينبغي إزالته"
+            )
+
+        else:
+
+            decision_text = (
+                "❌ غير مسموح — ينبغي إزالة المراجعة"
+            )
 
 
         section_translation = {
 
-            1: "مخالفات إرشادات المجتمع",
+            1:
+                "مخالفات إرشادات المجتمع",
 
-            2: "ملاحظات البائع أو الطلب أو الشحن",
+            2:
+                "ملاحظات البائع أو الطلب أو الشحن",
 
-            3: "التعليقات المتعلقة بالسعر أو التوفر",
+            3:
+                "التعليقات المتعلقة بالسعر أو التوفر",
 
-            4: "تعارض المصالح"
+            4:
+                "تعارض المصالح والتلاعب"
         }
 
 
@@ -1594,32 +1758,35 @@ def format_result(result):
                 "حالة المخزون أو عدم توفر المنتج",
 
             (4, 1):
-                "تعارض المصالح مع الأطراف ذات الصلة أو المنافسين",
+                "كتابة المراجعة من البائع أو المنافس أو الموظف أو شخص ذي صلة",
 
             (4, 2):
                 "نشر المراجعة مقابل تعويض أو حافز مالي"
         }
 
 
-        section_text = (
-            f"{section_number}. "
-            f"{section_translation.get(section_number, section_title)}"
-        )
-
-        point_text_display = (
-            f"النقطة {point_number}: "
-            f"{point_translation.get((section_number, point_number), point_text)}"
+        translated_section = section_translation.get(
+            section_number,
+            section_title
         )
 
 
-    return f"""
+        translated_point = point_translation.get(
+            (section_number, point_number),
+            point_text
+        )
+
+
+        return f"""
 **القرار:** {decision_text}
 
 **معرّف القاعدة:** {rule_id}
 
-**القسم الرئيسي للإرشادات:** {section_text}
+**القسم الرئيسي للإرشادات:** {section_number}. {translated_section}
 
-**القاعدة الفرعية:** {point_text_display}
+**القاعدة الفرعية:** النقطة {point_number}: {translated_point}
+
+**السبب:** {reason}
 
 **التعليق:** {comment}
 """
@@ -1637,9 +1804,11 @@ def extract_comment(formatted_result):
         re.DOTALL
     )
 
+
     if match:
 
         return match.group(1).strip()
+
 
     return formatted_result.strip()
 
@@ -1670,10 +1839,10 @@ if evaluate_btn:
                 "Evaluating review..."
             ):
 
-                # =================================================
+                # =============================================
                 # STEP 1
-                # Deterministic Rule Engine
-                # =================================================
+                # Deterministic rule engine
+                # =============================================
 
                 hard_rules = detect_hard_rules(
                     review_text
@@ -1681,14 +1850,17 @@ if evaluate_btn:
 
 
                 rule_engine_result = {
-                    "confirmed_violations": hard_rules
+
+                    "confirmed_violations":
+                        hard_rules
+
                 }
 
 
-                # =================================================
+                # =============================================
                 # STEP 2
-                # AI Evaluation
-                # =================================================
+                # AI evaluation
+                # =============================================
 
                 prompt = build_prompt(
                     review_text,
@@ -1696,35 +1868,37 @@ if evaluate_btn:
                 )
 
 
-                ai_result, used_model = evaluate_with_reliability(
-                    prompt
+                ai_result, used_model = (
+                    evaluate_with_reliability(
+                        prompt
+                    )
                 )
 
 
-                # =================================================
+                # =============================================
                 # STEP 3
-                # Validate AI Response
-                # =================================================
+                # Validate AI result
+                # =============================================
 
                 validate_result(
                     ai_result
                 )
 
 
-                # =================================================
+                # =============================================
                 # STEP 4
-                # Enforce Rule Consistency
-                # =================================================
+                # Enforce canonical Rule mapping
+                # =============================================
 
                 ai_result = enforce_rule_consistency(
                     ai_result
                 )
 
 
-                # =================================================
+                # =============================================
                 # STEP 5
-                # Apply Deterministic Rules
-                # =================================================
+                # Apply confirmed hard rules
+                # =============================================
 
                 final_result = apply_hard_rules(
                     ai_result,
@@ -1732,35 +1906,39 @@ if evaluate_btn:
                 )
 
 
-                # =================================================
+                # =============================================
                 # STEP 6
-                # Final Validation
-                # =================================================
+                # Final safety validation
+                # =============================================
 
-                validate_result(
+                final_result = final_safety_check(
                     final_result
                 )
 
 
-                # =================================================
+                # =============================================
                 # STEP 7
-                # Format
-                # =================================================
+                # Format result
+                # =============================================
 
                 formatted_result = format_result(
                     final_result
                 )
 
 
-                # =================================================
+                # =============================================
                 # STEP 8
-                # Save
-                # =================================================
+                # Save result
+                # =============================================
 
-                st.session_state.result = formatted_result
-
-                st.session_state.comment_text = extract_comment(
+                st.session_state.result = (
                     formatted_result
+                )
+
+                st.session_state.comment_text = (
+                    extract_comment(
+                        formatted_result
+                    )
                 )
 
 
@@ -1778,7 +1956,10 @@ if evaluate_btn:
 
 if st.session_state.result:
 
-    st.markdown("### Result:")
+    st.markdown(
+        "### Result:"
+    )
+
 
     st.markdown(
         st.session_state.result
@@ -1793,6 +1974,8 @@ if st.session_state.result:
         st.session_state.comment_text
     )
 
+
+    # Safe JavaScript escaping
 
     escaped_comment = json.dumps(
         comment_text,
@@ -1828,7 +2011,9 @@ if st.session_state.result:
         navigator.clipboard.writeText(text)
             .then(function() {{
 
-                alert("Comment copied to clipboard!");
+                alert(
+                    "Comment copied to clipboard!"
+                );
 
             }})
             .catch(function(err) {{
