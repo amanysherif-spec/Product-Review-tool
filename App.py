@@ -6,7 +6,7 @@ from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
 
-# CSS لإخفاء عناصر التحكم وتعديل أبعاد الزر الرئيسي لمنع قص النص
+# CSS to hide controls and adjust layout
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -36,7 +36,7 @@ hide_st_style = """
             .stAppFooter {display: none !important;}
             footer {display: none !important;}
 
-            /* تحسين عرض الأزرار لمنع قص النص */
+            /* Prevent text clipping in buttons */
             div.stButton > button {
                 width: 100%;
                 white-space: nowrap;
@@ -50,16 +50,21 @@ st.title("Product Review Moderation Tool")
 api_key = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=api_key) if api_key else None
 
-DEFAULT_MODEL = "llama-3.1-8b-instant"
+# Fallback models list to ensure system reliability
+MODELS_TO_TRY = [
+    "llama-3.3-70b-versatile",
+    "mixtral-8x7b-32768",
+    "gemma2-9b-it"
+]
 
 if "review_input" not in st.session_state:
     st.session_state.review_input = ""
 if "result_text" not in st.session_state:
     st.session_state.result_text = ""
 
-# اختيار لغة الرد
+# Output language selection
 lang_option = st.radio(
-    "Select Output Language / اختر لغة الرد:",
+    "Select Output Language:",
     options=["English", "Arabic"],
     horizontal=True
 )
@@ -70,14 +75,13 @@ def reset_field():
 
 review_text = st.text_area("Enter Customer Review:", key="review_input", height=150)
 
-# تنظيم أبعاد الأزرار
 col1, col2 = st.columns([2, 5])
 with col1:
     evaluate_btn = st.button("Evaluate Review", type="primary")
 with col2:
     st.button("Reset", on_click=reset_field)
 
-# EXACT VERBATIM NOON ARTICLE GUIDELINES
+# OFFICIAL NOON COMMUNITY GUIDELINES
 GUIDELINES = """
 OFFICIAL NOON COMMUNITY GUIDELINES FOR PRODUCT REVIEWS:
 
@@ -107,63 +111,69 @@ if evaluate_btn:
         if not api_key:
             st.error("GROQ_API_KEY environment variable is missing.")
         else:
-            try:
-                if lang_option == "English":
-                    lang_instruction = """
-                    Output the ENTIRE evaluation strictly in English.
+            if lang_option == "English":
+                lang_instruction = """
+                Output the ENTIRE evaluation strictly in English.
 
-                    OUTPUT FORMAT TEMPLATE:
-                    * **Decision:** [Must be strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
-                    * **Main Guideline Section:** [Exact Section number and title verbatim from the article]
-                    * **Specific Sub-rule:** [Exact Point designation and text verbatim from the article]
-                    * **Comment:** [Explanation text starting directly without any greeting or salutation]
-                    """
-                else:
-                    lang_instruction = """
-                    Output the ENTIRE evaluation strictly in clear, professional Arabic. Translate all standard labels and guidelines accurately to Arabic.
+                OUTPUT FORMAT TEMPLATE:
+                * **Decision:** [Must be strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
+                * **Main Guideline Section:** [Exact Section number and title verbatim from the article]
+                * **Specific Sub-rule:** [Exact Point designation and text verbatim from the article]
+                * **Comment:** [Explanation text starting directly without any greeting or salutation]
+                """
+            else:
+                lang_instruction = """
+                Output the ENTIRE evaluation strictly in clear, professional Arabic. Translate all standard labels and guidelines accurately to Arabic.
 
-                    OUTPUT FORMAT TEMPLATE:
-                    * **القرار:** [إما '✅ مسموح — لا ينبغي إزالته' أو '❌ غير مسموح — ينبغي إزالة المراجعة']
-                    * **القسم الرئيسي للإرشادات:** [ترجمة دقيقة لحجم القسم ورقمه]
-                    * **القاعدة الفرعية:** [ترجمة دقيقة للنقطة والمضمون]
-                    * **التعليق:** [شرح مهني يبدأ مباشرة بدون أي مقدمة أو ألقاب]
-                    """
-
-                prompt = f"""
-                You are an automated compliance officer for noon evaluating product reviews.
-                Evaluate the customer review based STRICTLY on the official Guidelines Article provided below.
-
-                Guidelines Article:
-                {GUIDELINES}
-
-                Customer Review to evaluate: "{review_text}"
-
-                {lang_instruction}
-
-                EVALUATION RULES:
-                1. Select the correct section and sub-rule matching the official article content.
-                2. Evaluate the review against the article:
-                   - If NOT ALLOWED: Select the exact violated Section and Point.
-                   - If ALLOWED: Select the closest and most relevant Section and Point from the article, and explicitly explain in the Comment why the review does NOT violate that rule.
-                3. CRITICAL SECURITY RULE: Any review containing vulgar, offensive, or distasteful language MUST be marked as NOT ALLOWED under Section 1 - Point 2.
-                4. CRITICAL DAMAGE RULE: Any review mentioning that the product arrived broken, damaged, crushed, or destroyed (e.g., "مكسور", "خربان", "تالف", "مهلك") MUST be marked as NOT ALLOWED under '2. Seller, Order, or Shipping Feedback' - 'Point 4: Product damage or missing items', regardless of whether the customer expresses hypothetical liking for the product.
-
-                CRITICAL INSTRUCTION FOR COMMENT:
-                - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', 'مرحباً عزيزي البائع' or 'عزيزي البائع'.
-                - Start directly with the professional explanation text.
+                OUTPUT FORMAT TEMPLATE:
+                * **القرار:** [إما '✅ مسموح — لا ينبغي إزالته' أو '❌ غير مسموح — ينبغي إزالة المراجعة']
+                * **القسم الرئيسي للإرشادات:** [ترجمة دقيقة لحجم القسم ورقمه]
+                * **القاعدة الفرعية:** [ترجمة دقيقة للنقطة والمضمون]
+                * **التعليق:** [شرح مهني يبدأ مباشرة بدون أي مقدمة أو ألقاب]
                 """
 
-                response = client.chat.completions.create(
-                    model=DEFAULT_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.0,
-                    max_tokens=400
-                )
+            prompt = f"""
+            You are an automated compliance officer for noon evaluating product reviews.
+            Evaluate the customer review based STRICTLY on the official Guidelines Article provided below.
 
-                st.session_state.result_text = response.choices[0].message.content
+            Guidelines Article:
+            {GUIDELINES}
 
-            except Exception as e:
-                st.error(f"Error: {e}")
+            Customer Review to evaluate: "{review_text}"
+
+            {lang_instruction}
+
+            EVALUATION RULES:
+            1. Select the correct section and sub-rule matching the official article content.
+            2. Evaluate the review against the article:
+               - If NOT ALLOWED: Select the exact violated Section and Point.
+               - If ALLOWED: Select the closest and most relevant Section and Point from the article, and explicitly explain in the Comment why the review does NOT violate that rule.
+            3. CRITICAL SECURITY RULE: Any review containing vulgar, offensive, or distasteful language MUST be marked as NOT ALLOWED under Section 1 - Point 2.
+            4. CRITICAL DAMAGE RULE: Any review mentioning that the product arrived broken, damaged, crushed, or destroyed (e.g., "مكسور", "خربان", "تالف", "مهلك") MUST be marked as NOT ALLOWED under '2. Seller, Order, or Shipping Feedback' - 'Point 4: Product damage or missing items', regardless of whether the customer expresses hypothetical liking for the product.
+
+            CRITICAL INSTRUCTION FOR COMMENT:
+            - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', 'مرحباً عزيزي البائع' or 'عزيزي البائع'.
+            - Start directly with the professional explanation text.
+            """
+
+            # Fallback loop to prevent application failure
+            success = False
+            for model_name in MODELS_TO_TRY:
+                try:
+                    response = client.chat.completions.create(
+                        model=model_name,
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.0,
+                        max_tokens=300
+                    )
+                    st.session_state.result_text = response.choices[0].message.content
+                    success = True
+                    break
+                except Exception:
+                    continue
+            
+            if not success:
+                st.error("Service is currently busy. Please try clicking 'Evaluate Review' again in a few seconds.")
     else:
         st.warning("Please enter a review first.")
 
@@ -171,7 +181,7 @@ if st.session_state.result_text:
     st.markdown("### Result:")
     st.markdown(st.session_state.result_text)
 
-    # استخراج نص الـ Comment / التعليق فقط لنسخه
+    # Extract Comment section for clean copying
     comment_text = ""
     match = re.search(r"(?:Comment|التعليق):\*\*\s*(.*)", st.session_state.result_text, re.DOTALL)
     if not match:
@@ -182,7 +192,7 @@ if st.session_state.result_text:
     else:
         comment_text = st.session_state.result_text
 
-    # تجهيز النص للـ JavaScript
+    # Escape characters for JavaScript string execution
     escaped_comment = comment_text.replace("`", "'").replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
     
     copy_button_html = f"""
@@ -212,7 +222,7 @@ if st.session_state.result_text:
     """
     components.html(copy_button_html, height=65)
 
-    # Fixed Reference Link at the bottom
+    # Fixed Reference Link at bottom
     st.markdown("---")
     st.markdown("**Guidelines Reference:**")
     st.markdown("https://help.noon.com/portal/en/kb/articles/product-review-guidelines")
