@@ -51,10 +51,12 @@ st.title("Product Review Moderation Tool")
 api_key = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=api_key) if api_key else None
 
-# Active models on Groq
+# Updated active models on Groq
 MODELS_TO_TRY = [
     "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant"
+    "llama3-8b-8192",
+    "llama3-70b-8192",
+    "gemma2-9b-it"
 ]
 
 if "review_input" not in st.session_state:
@@ -159,24 +161,20 @@ if evaluate_btn:
             success = False
             last_err = ""
             
-            # Retry loop with fallback models and delay logic
             for model_name in MODELS_TO_TRY:
-                for attempt in range(2):
-                    try:
-                        response = client.chat.completions.create(
-                            model=model_name,
-                            messages=[{"role": "user", "content": prompt}],
-                            temperature=0.0,
-                            max_tokens=250
-                        )
-                        st.session_state.result_text = response.choices[0].message.content
-                        success = True
-                        break
-                    except Exception as e:
-                        last_err = str(e)
-                        time.sleep(1)  # Brief pause before retrying
-                if success:
+                try:
+                    response = client.chat.completions.create(
+                        model=model_name,
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.0,
+                        max_tokens=250
+                    )
+                    st.session_state.result_text = response.choices[0].message.content
+                    success = True
                     break
+                except Exception as e:
+                    last_err = str(e)
+                    continue
 
             if not success:
                 st.error(f"Execution Error: {last_err}")
