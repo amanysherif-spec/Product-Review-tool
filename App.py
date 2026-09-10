@@ -6,7 +6,7 @@ from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
 
-# CSS لإخفاء عناصر التحكم وتعديل أبعاد الزر الرئيسي لمنع قص النص
+# CSS to hide Streamlit controls and prevent button text from being clipped
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -17,14 +17,14 @@ hide_st_style = """
             [data-testid="stAppDeployButton"] {display: none !important;}
             .stAppDeployButton {display: none !important;}
             #stDecoration {display: none !important;}
-            
+
             div[class*="stAppViewerToolbar"] {display: none !important;}
             [data-testid="stViewerBadge"] {display: none !important;}
             .stAppViewerToolbar {display: none !important;}
             div[class*="viewerBadge"] {display: none !important;}
             div[class*="styles_viewerBadge"] {display: none !important;}
             a[href*="streamlit.io/cloud"] {display: none !important;}
-            
+
             div[class*="viewerBadge"] *,
             div[class*="styles_viewerBadge"] *,
             a[href*="streamlit.io"],
@@ -36,7 +36,7 @@ hide_st_style = """
             .stAppFooter {display: none !important;}
             footer {display: none !important;}
 
-            /* تحسين عرض الأزرار لمنع قص النص */
+            /* Improve button rendering to prevent text clipping */
             div.stButton > button {
                 width: 100%;
                 white-space: nowrap;
@@ -50,25 +50,32 @@ st.title("Product Review Moderation Tool")
 api_key = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=api_key) if api_key else None
 
+# NOTE: Updated to a currently supported Groq model.
+# If this model is ever deprecated in the future, check the current list at:
+# https://console.groq.com/docs/models
+DEFAULT_MODEL = "llama-3.3-70b-versatile"
+
 if "review_input" not in st.session_state:
     st.session_state.review_input = ""
 if "result_text" not in st.session_state:
     st.session_state.result_text = ""
 
-# اختيار لغة الرد
+# Output language selection
 lang_option = st.radio(
     "Select Output Language / اختر لغة الرد:",
     options=["English", "Arabic"],
     horizontal=True
 )
 
+
 def reset_field():
     st.session_state.review_input = ""
     st.session_state.result_text = ""
 
+
 review_text = st.text_area("Enter Customer Review:", key="review_input", height=150)
 
-# تنظيم أبعاد الأزرار
+# Button layout
 col1, col2 = st.columns([2, 5])
 with col1:
     evaluate_btn = st.button("Evaluate Review", type="primary")
@@ -105,77 +112,70 @@ if evaluate_btn:
         if not api_key:
             st.error("GROQ_API_KEY environment variable is missing.")
         else:
-            if lang_option == "English":
-                lang_instruction = """
-                Output the ENTIRE evaluation strictly in English.
+            try:
+                if lang_option == "English":
+                    lang_instruction = """
+                    Output the ENTIRE evaluation strictly in English.
 
-                OUTPUT FORMAT TEMPLATE:
-                * **Decision:** [Must be strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
-                * **Main Guideline Section:** [Exact Section number and title verbatim from the article]
-                * **Specific Sub-rule:** [Exact Point designation and text verbatim from the article]
-                * **Comment:** [Explanation text starting directly without any greeting or salutation]
+                    OUTPUT FORMAT TEMPLATE:
+                    * **Decision:** [Must be strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
+                    * **Main Guideline Section:** [Exact Section number and title verbatim from the article]
+                    * **Specific Sub-rule:** [Exact Point designation and text verbatim from the article]
+                    * **Comment:** [Explanation text starting directly without any greeting or salutation]
+                    """
+                else:
+                    lang_instruction = """
+                    Output the ENTIRE evaluation strictly in clear, professional Arabic. Translate all standard labels and guidelines accurately to Arabic.
+
+                    OUTPUT FORMAT TEMPLATE:
+                    * **القرار:** [إما '✅ مسموح — لا ينبغي إزالته' أو '❌ غير مسموح — ينبغي إزالة المراجعة']
+                    * **القسم الرئيسي للإرشادات:** [ترجمة دقيقة لحجم القسم ورقمه]
+                    * **القاعدة الفرعية:** [ترجمة دقيقة للنقطة والمضمون]
+                    * **التعليق:** [شرح مهني يبدأ مباشرة بدون أي مقدمة أو ألقاب]
+                    """
+
+                prompt = f"""
+                You are an automated compliance officer for noon evaluating product reviews.
+                Evaluate the customer review based STRICTLY on the official Guidelines Article provided below.
+
+                Guidelines Article:
+                {GUIDELINES}
+
+                Customer Review to evaluate: "{review_text}"
+
+                {lang_instruction}
+
+                EVALUATION RULES:
+                1. Select the correct section and sub-rule matching the official article content.
+                2. Evaluate the review against the article:
+                   - If NOT ALLOWED: Select the exact violated Section and Point.
+                   - If ALLOWED: Select the closest and most relevant Section and Point from the article, and explicitly explain in the Comment why the review does NOT violate that rule.
+                3. CRITICAL SECURITY RULE: Any review containing vulgar, offensive, or distasteful language MUST be marked as NOT ALLOWED under Section 1 - Point 2.
+                4. CRITICAL DAMAGE RULE: Any review mentioning that the product arrived broken, damaged, crushed, or destroyed (e.g., "مكسور", "خربان", "تالف", "مهلك") MUST be marked as NOT ALLOWED under '2. Seller, Order, or Shipping Feedback' - 'Point 4: Product damage or missing items', regardless of whether the customer expresses hypothetical liking for the product.
+
+                CRITICAL INSTRUCTION FOR COMMENT:
+                - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', 'مرحباً عزيزي البائع' or 'عزيزي البائع'.
+                - Start directly with the professional explanation text.
                 """
-            else:
-                lang_instruction = """
-                Output the ENTIRE evaluation strictly in clear, professional Arabic. Translate all standard labels and guidelines accurately to Arabic.
 
-                OUTPUT FORMAT TEMPLATE:
-                * **القرار:** [إما '✅ مسموح — لا ينبغي إزالته' أو '❌ غير مسموح — ينبغي إزالة المراجعة']
-                * **القسم الرئيسي للإرشادات:** [ترجمة دقيقة لحجم القسم ورقمه]
-                * **القاعدة الفرعية:** [ترجمة دقيقة للنقطة والمضمون]
-                * **التعليق:** [شرح مهني يبدأ مباشرة بدون أي مقدمة أو ألقاب]
-                """
+                response = client.chat.completions.create(
+                    model=DEFAULT_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.0
+                )
 
-            prompt = f"""
-            You are an automated compliance officer for noon evaluating product reviews.
-            Evaluate the customer review based STRICTLY on the official Guidelines Article provided below.
+                st.session_state.result_text = response.choices[0].message.content
 
-            Guidelines Article:
-            {GUIDELINES}
-
-            Customer Review to evaluate: "{review_text}"
-
-            {lang_instruction}
-
-            EVALUATION RULES:
-            1. Select the correct section and sub-rule matching the official article content.
-            2. Evaluate the review against the article:
-               - If NOT ALLOWED: Select the exact violated Section and Point.
-               - If ALLOWED: Select the closest and most relevant Section and Point from the article, and explicitly explain in the Comment why the review does NOT violate that rule.
-            3. CRITICAL SECURITY RULE: Any review containing vulgar, offensive, or distasteful language MUST be marked as NOT ALLOWED under Section 1 - Point 2.
-            4. CRITICAL DAMAGE RULE: Any review mentioning that the product arrived broken, damaged, crushed, or destroyed (e.g., "مكسور", "خربان", "تالف", "مهلك") MUST be marked as NOT ALLOWED under '2. Seller, Order, or Shipping Feedback' - 'Point 4: Product damage or missing items', regardless of whether the customer expresses hypothetical liking for the product.
-
-            CRITICAL INSTRUCTION FOR COMMENT:
-            - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', 'مرحباً عزيزي البائع' or 'عزيزي البائع'.
-            - Start directly with the professional explanation text.
-            """
-
-            # قائمة بالنماذج الحديثة والنشطة حصراً على Groq حالياً
-            active_models = [
-                "llama-3.3-70b-versatile",
-                "llama-3.1-8b-instant",
-                "gemma2-9b-it"
-            ]
-
-            success = False
-            last_error = ""
-
-            for model_id in active_models:
-                try:
-                    response = client.chat.completions.create(
-                        model=model_id,
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=0.0
+            except Exception as e:
+                error_str = str(e).lower()
+                if "decommissioned" in error_str or "model_decommissioned" in error_str:
+                    st.error(
+                        "⚠️ The model currently set in DEFAULT_MODEL has been decommissioned by Groq. "
+                        "Please update DEFAULT_MODEL to a currently supported model. "
+                        "Check the up-to-date list here: https://console.groq.com/docs/models"
                     )
-                    st.session_state.result_text = response.choices[0].message.content
-                    success = True
-                    break
-                except Exception as e:
-                    last_error = str(e)
-                    continue
-
-            if not success:
-                st.error(f"Error: {last_error if last_error else 'Could not process using available Groq models.'}")
+                else:
+                    st.error(f"Error: {e}")
     else:
         st.warning("Please enter a review first.")
 
@@ -183,20 +183,20 @@ if st.session_state.result_text:
     st.markdown("### Result:")
     st.markdown(st.session_state.result_text)
 
-    # استخراج نص الـ Comment / التعليق فقط لنسخه
+    # Extract only the Comment text to copy
     comment_text = ""
     match = re.search(r"(?:Comment|التعليق):\*\*\s*(.*)", st.session_state.result_text, re.DOTALL)
     if not match:
         match = re.search(r"(?:Comment|التعليق):\s*(.*)", st.session_state.result_text, re.DOTALL)
-    
+
     if match:
         comment_text = match.group(1).strip()
     else:
         comment_text = st.session_state.result_text
 
-    # تجهيز النص للـ JavaScript
+    # Prepare the text for JavaScript
     escaped_comment = comment_text.replace("`", "'").replace("\\", "\\\\").replace("\n", "\\n").replace('"', '\\"')
-    
+
     copy_button_html = f"""
     <button onclick="copyToClipboard()" style="
         background-color: #2e7d32;
