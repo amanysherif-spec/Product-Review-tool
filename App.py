@@ -115,26 +115,17 @@ if evaluate_btn:
             """
 
             try:
-                # استخدام النموذج الرسمي والمدعوم حالياً بشكل أساسي
+                # الاستدلال المباشر بالنموذج الرسمي الشغال حالياً بدون قائمة أو تخمين
                 response = client.chat.completions.create(
                     model="llama-3.3-70b-versatile",
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.0,
-                    max_tokens=200
+                    max_tokens=250
                 )
                 st.session_state.result_text = response.choices[0].message.content
+
             except Exception as e:
-                # نموذج احتياطي نصوص خفيف متاح دائماً
-                try:
-                    response = client.chat.completions.create(
-                        model="llama-3.1-8b-instant",
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=0.0,
-                        max_tokens=200
-                    )
-                    st.session_state.result_text = response.choices[0].message.content
-                except Exception as err:
-                    st.error(f"Execution Error: {err}")
+                st.error(f"Execution Error: {e}")
     else:
         st.warning("Please enter a review first.")
 
