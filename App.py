@@ -51,12 +51,10 @@ st.title("Product Review Moderation Tool")
 api_key = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=api_key) if api_key else None
 
-# Updated active models on Groq
+# Active supported models on Groq
 MODELS_TO_TRY = [
     "llama-3.3-70b-versatile",
-    "llama3-8b-8192",
-    "llama3-70b-8192",
-    "gemma2-9b-it"
+    "llama-3.1-8b-instant"
 ]
 
 if "review_input" not in st.session_state:
