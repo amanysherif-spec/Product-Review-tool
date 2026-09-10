@@ -6,6 +6,7 @@ from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
 
+# إخفاء عناصر التحكم الزائدة في واجهة Streamlit
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -109,38 +110,40 @@ if evaluate_btn:
             {lang_instruction}
 
             RULES:
-            1. If broken/damaged/not working upon arrival (e.g., mksour, kharban, broken, not working), mark NOT ALLOWED under Section 2 - Point 4.
+            1. If broken/damaged/not working upon arrival, mark NOT ALLOWED under Section 2 - Point 4.
             2. If offensive/vulgar, mark NOT ALLOWED under Section 1 - Point 2.
-            3. No greetings like 'Dear Seller' or 'Hi' in the Comment. Start directly with evaluation.
+            3. No greetings in Comment. Start directly with evaluation.
             """
 
-            try:
-                # جلب النماذج المتاحة فعلياً في حسابك ديناميكياً
-                available_models = [m.id for m in client.models.list().data]
-                
-                # ترتيب التفضيل للنماذج المتاحة
-                preferred_models = ["llama-3.3-70b-versatile", "llama3-70b-8192", "llama3-8b-8192", "mixtral-8x7b-32768"]
-                selected_model = None
-                
-                for pm in preferred_models:
-                    if pm in available_models:
-                        selected_model = pm
-                        break
-                
-                # في حال عدم وجود النماذج المحددة، اختر أول نموذج متاح بالخدمة
-                if not selected_model and available_models:
-                    selected_model = available_models[0]
+            # قائمة النماذج النصية فقط مرتبة بحسب الأفضلية والأخف حجماً
+            text_models = [
+                "llama-3.1-8b-instant",
+                "llama3-8b-8192",
+                "llama-3.3-70b-versatile",
+                "llama3-70b-8192",
+                "mixtral-8x7b-32768"
+            ]
 
-                response = client.chat.completions.create(
-                    model=selected_model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.0,
-                    max_tokens=250
-                )
-                st.session_state.result_text = response.choices[0].message.content
+            success = False
+            last_error = ""
 
-            except Exception as e:
-                st.error(f"Execution Error: {e}")
+            for model_id in text_models:
+                try:
+                    response = client.chat.completions.create(
+                        model=model_id,
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.0,
+                        max_tokens=200
+                    )
+                    st.session_state.result_text = response.choices[0].message.content
+                    success = True
+                    break
+                except Exception as e:
+                    last_error = str(e)
+                    continue
+
+            if not success:
+                st.error(f"Execution Error: {last_error}")
     else:
         st.warning("Please enter a review first.")
 
