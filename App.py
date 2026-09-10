@@ -6,7 +6,6 @@ from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
 
-# إخفاء عناصر التحكم الزائدة في واجهة Streamlit
 hide_st_style = """
             <style>
             #MainMenu {visibility: hidden;}
@@ -115,35 +114,27 @@ if evaluate_btn:
             3. No greetings in Comment. Start directly with evaluation.
             """
 
-            # قائمة النماذج النصية فقط مرتبة بحسب الأفضلية والأخف حجماً
-            text_models = [
-                "llama-3.1-8b-instant",
-                "llama3-8b-8192",
-                "llama-3.3-70b-versatile",
-                "llama3-70b-8192",
-                "mixtral-8x7b-32768"
-            ]
-
-            success = False
-            last_error = ""
-
-            for model_id in text_models:
+            try:
+                # استخدام النموذج الرسمي والمدعوم حالياً بشكل أساسي
+                response = client.chat.completions.create(
+                    model="llama-3.3-70b-versatile",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.0,
+                    max_tokens=200
+                )
+                st.session_state.result_text = response.choices[0].message.content
+            except Exception as e:
+                # نموذج احتياطي نصوص خفيف متاح دائماً
                 try:
                     response = client.chat.completions.create(
-                        model=model_id,
+                        model="llama-3.1-8b-instant",
                         messages=[{"role": "user", "content": prompt}],
                         temperature=0.0,
                         max_tokens=200
                     )
                     st.session_state.result_text = response.choices[0].message.content
-                    success = True
-                    break
-                except Exception as e:
-                    last_error = str(e)
-                    continue
-
-            if not success:
-                st.error(f"Execution Error: {last_error}")
+                except Exception as err:
+                    st.error(f"Execution Error: {err}")
     else:
         st.warning("Please enter a review first.")
 
