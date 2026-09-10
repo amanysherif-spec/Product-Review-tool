@@ -2,7 +2,6 @@ import streamlit as st
 import os
 import streamlit.components.v1 as components
 import re
-import time
 from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
@@ -51,11 +50,8 @@ st.title("Product Review Moderation Tool")
 api_key = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=api_key) if api_key else None
 
-# Active supported models on Groq
-MODELS_TO_TRY = [
-    "llama-3.3-70b-versatile",
-    "llama-3.1-8b-instant"
-]
+# النموذج الوحيد المعتمد والشغال حالياً على Groq
+MODEL_NAME = "llama-3.3-70b-versatile"
 
 if "review_input" not in st.session_state:
     st.session_state.review_input = ""
@@ -156,26 +152,16 @@ if evaluate_btn:
             - Start directly with the professional explanation text.
             """
 
-            success = False
-            last_err = ""
-            
-            for model_name in MODELS_TO_TRY:
-                try:
-                    response = client.chat.completions.create(
-                        model=model_name,
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=0.0,
-                        max_tokens=250
-                    )
-                    st.session_state.result_text = response.choices[0].message.content
-                    success = True
-                    break
-                except Exception as e:
-                    last_err = str(e)
-                    continue
-
-            if not success:
-                st.error(f"Execution Error: {last_err}")
+            try:
+                response = client.chat.completions.create(
+                    model=MODEL_NAME,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.0,
+                    max_tokens=250
+                )
+                st.session_state.result_text = response.choices[0].message.content
+            except Exception as e:
+                st.error(f"Execution Error: {e}")
     else:
         st.warning("Please enter a review first.")
 
