@@ -2,6 +2,7 @@ import streamlit as st
 import os
 import streamlit.components.v1 as components
 import re
+import time
 from groq import Groq
 
 st.set_page_config(page_title="Product Review Moderation Tool", page_icon="🛡️")
@@ -50,11 +51,10 @@ st.title("Product Review Moderation Tool")
 api_key = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=api_key) if api_key else None
 
-# Fallback models list to ensure system reliability
+# Active models on Groq
 MODELS_TO_TRY = [
     "llama-3.3-70b-versatile",
-    "mixtral-8x7b-32768",
-    "gemma2-9b-it"
+    "llama-3.1-8b-instant"
 ]
 
 if "review_input" not in st.session_state:
@@ -156,24 +156,30 @@ if evaluate_btn:
             - Start directly with the professional explanation text.
             """
 
-            # Fallback loop to prevent application failure
             success = False
-            for model_name in MODELS_TO_TRY:
-                try:
-                    response = client.chat.completions.create(
-                        model=model_name,
-                        messages=[{"role": "user", "content": prompt}],
-                        temperature=0.0,
-                        max_tokens=300
-                    )
-                    st.session_state.result_text = response.choices[0].message.content
-                    success = True
-                    break
-                except Exception:
-                    continue
+            last_err = ""
             
+            # Retry loop with fallback models and delay logic
+            for model_name in MODELS_TO_TRY:
+                for attempt in range(2):
+                    try:
+                        response = client.chat.completions.create(
+                            model=model_name,
+                            messages=[{"role": "user", "content": prompt}],
+                            temperature=0.0,
+                            max_tokens=250
+                        )
+                        st.session_state.result_text = response.choices[0].message.content
+                        success = True
+                        break
+                    except Exception as e:
+                        last_err = str(e)
+                        time.sleep(1)  # Brief pause before retrying
+                if success:
+                    break
+
             if not success:
-                st.error("Service is currently busy. Please try clicking 'Evaluate Review' again in a few seconds.")
+                st.error(f"Execution Error: {last_err}")
     else:
         st.warning("Please enter a review first.")
 
