@@ -71,37 +71,11 @@ with col1:
 with col2:
     st.button("Reset", on_click=reset_field)
 
-# نص إرشادات المقال الرسمي من noon بالضبط
-ARTICLE_SECTIONS = """
-EXACT ARTICLE SECTIONS & SUB-RULES FROM THE NOON GUIDELINES ARTICLE:
-
-What Should a Review Include (Allowed & Valid Review Benchmarks):
-- Section: What Should a Review Include | Point 1: What did you like about the product?
-- Section: What Should a Review Include | Point 2: Is the product easy to use?
-- Section: What Should a Review Include | Point 3: Does it offer good value for money?
-- Section: What Should a Review Include | Point 4: Would you recommend it to others?
-- Section: What Should a Review Include | Point 5: What should other customers know before buying this product?
-
-What Is Not Allowed (Violations):
-1. Community Guideline Violations:
-   - Point 1: Promotional or advertising content
-   - Point 2: Offensive, abusive, or illegal language
-   - Point 3: Hate speech or discriminatory remarks
-   - Point 4: Personal or sensitive information
-
-2. Seller, Order, or Shipping Feedback:
-   - Point 1: Seller performance or reputation
-   - Point 2: Ordering or return experiences
-   - Point 3: Shipping, packaging, or delivery speed
-   - Point 4: Product damage or missing items
-
-3. Comments About Pricing or Availability:
-   - Point 1: Competitor pricing or price complaints like "Found it cheaper elsewhere"
-   - Point 2: Stock status or store-level availability comments like "It's out of stock again"
-
-4. Conflicts of Interest:
-   - Point 1: Content created by friends, family members, employers, employees, business partners, or competitors
-   - Point 2: Reviews posted in exchange for compensation of any kind
+GUIDELINES = """
+1. Community Guideline Violations: Point 1: Promotional content | Point 2: Offensive/abusive/vulgar language | Point 3: Hate speech | Point 4: Personal info
+2. Seller/Order/Shipping Feedback: Point 1: Seller performance | Point 2: Order/return experience | Point 3: Shipping/packaging/delivery | Point 4: Product damage or missing items
+3. Pricing/Availability: Point 1: Competitor pricing | Point 2: Stock status
+4. Conflicts of Interest: Point 1: Posted by seller/friend/family | Point 2: Paid review
 """
 
 if evaluate_btn:
@@ -113,33 +87,32 @@ if evaluate_btn:
                 lang_instruction = """
                 OUTPUT FORMAT:
                 * **Decision:** [Strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
-                * **Main Guideline Section:** [Must match exact section name from the article above. NEVER N/A]
-                * **Specific Sub-rule:** [Must include exact Point designation and exact text from the article. NEVER N/A]
+                * **Main Guideline Section:** [Section number & name, OR 'N/A' if Allowed]
+                * **Specific Sub-rule:** [Point designation & text, OR 'N/A' if Allowed]
                 * **Comment:** [Direct explanation quoting the review without greetings/salutations]
                 """
             else:
                 lang_instruction = """
                 OUTPUT FORMAT (in Arabic):
                 * **القرار:** ['✅ مسموح — لا ينبغي إزالته' OR '❌ غير مسموح — ينبغي إزالة المراجعة']
-                * **القسم الرئيسي للإرشادات:** [يجب أن يطابق اسم القسم المذكور في المقال تماماً. يمنع كتابة N/A]
-                * **القاعدة الفرعية:** [يجب تحديد رقم ونص النقطة بالضبط من المقال الرسمي. يمنع كتابة N/A]
+                * **القسم الرئيسي للإرشادات:** [اسم ورقم القسم المخالف، أو 'لا يوجد' إذا كان مسموحاً]
+                * **القاعدة الفرعية:** [رقم ونص القاعدة الفرعية المخالفة، أو 'لا يوجد' إذا كان مسموحاً]
                 * **التعليق:** [شرح مباشر مع اقتباس النص بدون أي ألقاب أو مقدمات]
                 """
 
             prompt = f"""
-            You are a strict compliance officer evaluating product reviews for noon based ONLY on the provided article text:
-            {ARTICLE_SECTIONS}
+            You are a compliance officer evaluating product reviews for noon based on these rules:
+            {GUIDELINES}
 
             Review: "{review_text}"
 
             {lang_instruction}
 
-            MANDATORY INSTRUCTIONS:
-            1. NEVER write 'N/A', 'None', or leave fields blank.
-            2. If the review is ALLOWED and has no violations (e.g., "Very bad", "Good product"), map it to the closest matching point under the section "What Should a Review Include" (e.g., Point 1, Point 3, or Point 5) depending on whether it talks about general opinion, quality, value, or usage experience.
-            3. If the review is NOT ALLOWED, map it directly to the violated section and point under "What Is Not Allowed" (Section 1, Section 2, Section 3, or Section 4).
-            4. Copy the exact titles and point descriptions as written in the article context.
-            5. No greetings in Comment. Start directly with the evaluation.
+            RULES:
+            1. If broken/damaged/not working upon arrival, mark NOT ALLOWED under Section 2 - Point 4.
+            2. If offensive/vulgar, mark NOT ALLOWED under Section 1 - Point 2.
+            3. If the review is valid and has no violation, mark ALLOWED and set Main Guideline Section and Specific Sub-rule to 'N/A'.
+            4. No greetings in Comment. Start directly with evaluation.
             """
 
             try:
@@ -160,7 +133,7 @@ if evaluate_btn:
                         model=model_id,
                         messages=[{"role": "user", "content": prompt}],
                         temperature=0.0,
-                        max_tokens=300
+                        max_tokens=250
                     )
                     st.session_state.result_text = response.choices[0].message.content
                     success = True
