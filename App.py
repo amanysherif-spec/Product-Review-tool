@@ -72,27 +72,10 @@ with col2:
     st.button("Reset", on_click=reset_field)
 
 GUIDELINES = """
-OFFICIAL NOON COMMUNITY GUIDELINES FOR PRODUCT REVIEWS:
-
-1. Community Guideline Violations
-   Point 1: Promotional or advertising content
-   Point 2: Offensive, abusive, inappropriate, vulgar, or distasteful language
-   Point 3: Hate speech or discriminatory remarks
-   Point 4: Personal or sensitive information
-
-2. Seller, Order, or Shipping Feedback
-   Point 1: Seller performance or reputation
-   Point 2: Ordering or return experiences
-   Point 3: Shipping, packaging, or delivery speed
-   Point 4: Product damage or missing items
-
-3. Comments About Pricing or Availability
-   Point 1: Finding the product cheaper elsewhere or competitor pricing
-   Point 2: Stock status, out-of-stock items, or store-level availability
-
-4. Conflicts of Interest & Anti-Manipulation
-   Point 1: Written by seller, competitor, employee, friend, family member, or business partner
-   Point 2: Posted in exchange for compensation or financial incentive
+1. Community Guideline Violations: Point 1: Promotional content | Point 2: Offensive/abusive/vulgar language | Point 3: Hate speech | Point 4: Personal info
+2. Seller/Order/Shipping Feedback: Point 1: Seller performance | Point 2: Order/return experience | Point 3: Shipping/packaging/delivery | Point 4: Product damage or missing items
+3. Pricing/Availability: Point 1: Competitor pricing | Point 2: Stock status
+4. Conflicts of Interest: Point 1: Posted by seller/friend/family | Point 2: Paid review
 """
 
 if evaluate_btn:
@@ -102,62 +85,57 @@ if evaluate_btn:
         else:
             if lang_option == "English":
                 lang_instruction = """
-                Output the ENTIRE evaluation strictly in English.
-
-                OUTPUT FORMAT TEMPLATE:
-                * **Decision:** [Must be strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
-                * **Main Guideline Section:** [Exact Section number and title verbatim from the article]
-                * **Specific Sub-rule:** [Exact Point designation and text verbatim from the article]
-                * **Comment:** [Explanation text starting directly without any greeting or salutation]
+                OUTPUT FORMAT:
+                * **Decision:** [Strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
+                * **Main Guideline Section:** [Section number & name]
+                * **Specific Sub-rule:** [Point designation & text]
+                * **Comment:** [Direct explanation without greetings/salutations]
                 """
             else:
                 lang_instruction = """
-                Output the ENTIRE evaluation strictly in clear, professional Arabic. Translate all standard labels and guidelines accurately to Arabic.
-
-                OUTPUT FORMAT TEMPLATE:
-                * **القرار:** [إما '✅ مسموح — لا ينبغي إزالته' أو '❌ غير مسموح — ينبغي إزالة المراجعة']
-                * **القسم الرئيسي للإرشادات:** [ترجمة دقيقة لحجم القسم ورقمه]
-                * **القاعدة الفرعية:** [ترجمة دقيقة للنقطة والمضمون]
-                * **التعليق:** [شرح مهني يبدأ مباشرة بدون أي مقدمة أو ألقاب]
+                OUTPUT FORMAT (in Arabic):
+                * **القرار:** ['✅ مسموح — لا ينبغي إزالته' OR '❌ غير مسموح — ينبغي إزالة المراجعة']
+                * **القسم الرئيسي للإرشادات:** [اسم ورقم القسم]
+                * **القاعدة الفرعية:** [رقم ونص القاعدة الفرعية]
+                * **التعليق:** [شرح مباشر بدون أي مقدمات أو ألقاب]
                 """
 
             prompt = f"""
-            You are an automated compliance officer for noon evaluating product reviews.
-            Evaluate the customer review based STRICTLY on the official Guidelines Article provided below.
-
-            Guidelines Article:
+            You are a compliance officer evaluating product reviews for noon based on these rules:
             {GUIDELINES}
 
-            Customer Review to evaluate: "{review_text}"
+            Review: "{review_text}"
 
             {lang_instruction}
 
-            EVALUATION RULES:
-            1. Select the correct section and sub-rule matching the official article content.
-            2. Evaluate the review against the article:
-               - If NOT ALLOWED: Select the exact violated Section and Point.
-               - If ALLOWED: Select the closest and most relevant Section and Point from the article, and explicitly explain in the Comment why the review does NOT violate that rule.
-            3. CRITICAL SECURITY RULE: Any review containing vulgar, offensive, or distasteful language MUST be marked as NOT ALLOWED under Section 1 - Point 2.
-            4. CRITICAL DAMAGE RULE: Any review mentioning that the product arrived broken, damaged, crushed, or destroyed (e.g., "مكسور", "خربان", "تالف", "مهلك") MUST be marked as NOT ALLOWED under '2. Seller, Order, or Shipping Feedback' - 'Point 4: Product damage or missing items', regardless of whether the customer expresses hypothetical liking for the product.
-
-            CRITICAL INSTRUCTION FOR COMMENT:
-            - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', 'مرحباً عزيزي البائع' or 'عزيزي البائع'.
-            - Start directly with the professional explanation text.
+            RULES:
+            1. If broken/damaged/not working upon arrival (e.g., mksour, kharban, broken, not working), mark NOT ALLOWED under Section 2 - Point 4.
+            2. If offensive/vulgar, mark NOT ALLOWED under Section 1 - Point 2.
+            3. No greetings like 'Dear Seller' or 'Hi' in the Comment. Start directly with evaluation.
             """
 
             try:
-                # الكشف التلقائي عن أحدث نموذج متاح للحساب
-                available_models = client.models.list().data
-                model_ids = [m.id for m in available_models if "llama" in m.id]
-                selected_model = model_ids[0] if model_ids else "llama3-70b-8192"
+                # تجربة النماذج الشغالة بترتيب الأقل استهلاكاً للتوكنز
+                models_to_try = ["llama-3.1-8b-instant", "llama3-8b-8192", "llama-3.3-70b-versatile"]
+                
+                response = None
+                for model_item in models_to_try:
+                    try:
+                        response = client.chat.completions.create(
+                            model=model_item,
+                            messages=[{"role": "user", "content": prompt}],
+                            temperature=0.0,
+                            max_tokens=200
+                        )
+                        break
+                    except Exception:
+                        continue
 
-                response = client.chat.completions.create(
-                    model=selected_model,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.0,
-                    max_tokens=250
-                )
-                st.session_state.result_text = response.choices[0].message.content
+                if response:
+                    st.session_state.result_text = response.choices[0].message.content
+                else:
+                    st.error("Could not process request with available models.")
+
             except Exception as e:
                 st.error(f"Execution Error: {e}")
     else:
