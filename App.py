@@ -114,18 +114,36 @@ if evaluate_btn:
             3. No greetings in Comment. Start directly with evaluation.
             """
 
+            # جلب النماذج النشطة في حسابك ديناميكياً بدون الاعتماد على اسم ثابت
             try:
-                # الاستدلال المباشر بالنموذج الرسمي الشغال حالياً بدون قائمة أو تخمين
-                response = client.chat.completions.create(
-                    model="llama-3.3-70b-versatile",
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.0,
-                    max_tokens=250
-                )
-                st.session_state.result_text = response.choices[0].message.content
+                available_models = client.models.list().data
+                active_text_models = [
+                    m.id for m in available_models 
+                    if not any(excluded in m.id.lower() for excluded in ["whisper", "orpheus", "guard", "vision"])
+                ]
+            except Exception:
+                active_text_models = []
 
-            except Exception as e:
-                st.error(f"Execution Error: {e}")
+            success = False
+            last_error = ""
+
+            for model_id in active_text_models:
+                try:
+                    response = client.chat.completions.create(
+                        model=model_id,
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.0,
+                        max_tokens=250
+                    )
+                    st.session_state.result_text = response.choices[0].message.content
+                    success = True
+                    break
+                except Exception as e:
+                    last_error = str(e)
+                    continue
+
+            if not success:
+                st.error(f"Execution Error: {last_error if last_error else 'No active text models found'}")
     else:
         st.warning("Please enter a review first.")
 
