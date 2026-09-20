@@ -14,7 +14,7 @@ from groq import Groq
 st.set_page_config(
     page_title="Product Review Moderation Tool",
     page_icon="🛡️",
-    layout="wide"
+    layout="centered"
 )
 
 
@@ -48,48 +48,82 @@ client = Groq(api_key=GROQ_API_KEY)
 
 
 # ============================================================
-# CUSTOM CSS
-# Keeps the original/simple UI appearance
+# ORIGINAL UI STYLE
 # ============================================================
 
 st.markdown(
     """
     <style>
 
-    /* Main page width */
+    /* ========================================================
+       MAIN CONTAINER
+       ======================================================== */
+
     .block-container {
-        max-width: 100%;
-        padding-top: 2rem;
-        padding-left: 2rem;
-        padding-right: 2rem;
-        padding-bottom: 3rem;
+        max-width: 1056px !important;
+        padding-top: 1rem !important;
+        padding-bottom: 3rem !important;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+        margin: 0 auto !important;
     }
 
-    /* Original title */
-    h1 {
-        font-size: 2rem !important;
-        margin-bottom: 1.5rem !important;
+
+    /* ========================================================
+       REMOVE EXTRA TOP SPACE
+       ======================================================== */
+
+    header {
+        visibility: hidden;
+        height: 0px;
     }
 
-    /* Result title */
-    h2 {
-        font-size: 2rem !important;
-        margin-top: 2.5rem !important;
-        margin-bottom: 1.5rem !important;
-    }
 
-    /* Text area */
+    /* ========================================================
+       TEXTAREA
+       ======================================================== */
+
     textarea {
+        font-size: 16px !important;
+        line-height: 1.5 !important;
+        background-color: #f0f2f6 !important;
+        border-radius: 10px !important;
+    }
+
+
+    /* ========================================================
+       BUTTONS
+       ======================================================== */
+
+    div.stButton > button {
+        min-height: 48px !important;
+        border-radius: 10px !important;
         font-size: 16px !important;
     }
 
-    /* Buttons */
-    div.stButton > button {
-        min-height: 48px;
-        border-radius: 10px;
-        font-size: 16px;
-        font-weight: 600;
+
+    /* ========================================================
+       PRIMARY BUTTON
+       ======================================================== */
+
+    div.stButton > button[kind="primary"] {
+        background-color: #ff4b4b !important;
+        border-color: #ff4b4b !important;
+        color: white !important;
+        font-weight: 600 !important;
     }
+
+
+    /* ========================================================
+       RESULT TEXT
+       ======================================================== */
+
+    .result-line {
+        font-size: 20px;
+        line-height: 1.7;
+        margin-bottom: 22px;
+    }
+
 
     </style>
     """,
@@ -323,7 +357,6 @@ def normalize_text(text):
         text
     )
 
-    # Arabic normalization
     replacements = {
         "أ": "ا",
         "إ": "ا",
@@ -336,7 +369,6 @@ def normalize_text(text):
     for old, new in replacements.items():
         text = text.replace(old, new)
 
-    # Normalize punctuation/spaces
     text = re.sub(
         r"\s+",
         " ",
@@ -355,10 +387,7 @@ def get_closest_rule(review):
     text = normalize_text(review)
 
 
-    # --------------------------------------------------------
     # PRICE
-    # --------------------------------------------------------
-
     price_phrases = [
 
         "found it cheaper elsewhere",
@@ -386,19 +415,14 @@ def get_closest_rule(review):
         "نفسه ارخص"
     ]
 
-
     if any(
         normalize_text(x) in text
         for x in price_phrases
     ):
-
         return "3.1"
 
 
-    # --------------------------------------------------------
     # AVAILABILITY
-    # --------------------------------------------------------
-
     availability_phrases = [
 
         "out of stock",
@@ -421,19 +445,14 @@ def get_closest_rule(review):
         "متى يرجع للمخزون"
     ]
 
-
     if any(
         normalize_text(x) in text
         for x in availability_phrases
     ):
-
         return "3.2"
 
 
-    # --------------------------------------------------------
     # SELLER
-    # --------------------------------------------------------
-
     seller_phrases = [
 
         "seller",
@@ -451,19 +470,14 @@ def get_closest_rule(review):
         "اداء البائع"
     ]
 
-
     if any(
         normalize_text(x) in text
         for x in seller_phrases
     ):
-
         return "2.1"
 
 
-    # --------------------------------------------------------
     # ORDER / RETURN
-    # --------------------------------------------------------
-
     order_phrases = [
 
         "order",
@@ -484,19 +498,14 @@ def get_closest_rule(review):
         "استرداد"
     ]
 
-
     if any(
         normalize_text(x) in text
         for x in order_phrases
     ):
-
         return "2.2"
 
 
-    # --------------------------------------------------------
     # SHIPPING
-    # --------------------------------------------------------
-
     shipping_phrases = [
 
         "shipping",
@@ -519,19 +528,14 @@ def get_closest_rule(review):
         "المندوب"
     ]
 
-
     if any(
         normalize_text(x) in text
         for x in shipping_phrases
     ):
-
         return "2.3"
 
 
-    # --------------------------------------------------------
     # DAMAGE / MISSING
-    # --------------------------------------------------------
-
     damage_missing_phrases = [
 
         "broken",
@@ -563,19 +567,14 @@ def get_closest_rule(review):
         "اكسسوارات ناقصه"
     ]
 
-
     if any(
         normalize_text(x) in text
         for x in damage_missing_phrases
     ):
-
         return "2.4"
 
 
-    # --------------------------------------------------------
     # PROMOTIONAL
-    # --------------------------------------------------------
-
     promotional_phrases = [
 
         "buy from me",
@@ -598,19 +597,14 @@ def get_closest_rule(review):
         "كود خصم"
     ]
 
-
     if any(
         normalize_text(x) in text
         for x in promotional_phrases
     ):
-
         return "1.1"
 
 
-    # --------------------------------------------------------
     # PERSONAL INFORMATION
-    # --------------------------------------------------------
-
     personal_info_phrases = [
 
         "phone number",
@@ -632,19 +626,14 @@ def get_closest_rule(review):
         "رمز التحقق"
     ]
 
-
     if any(
         normalize_text(x) in text
         for x in personal_info_phrases
     ):
-
         return "1.4"
 
 
-    # --------------------------------------------------------
     # CONFLICT OF INTEREST
-    # --------------------------------------------------------
-
     conflict_phrases = [
 
         "i am the seller",
@@ -666,19 +655,14 @@ def get_closest_rule(review):
         "شريكي"
     ]
 
-
     if any(
         normalize_text(x) in text
         for x in conflict_phrases
     ):
-
         return "4.1"
 
 
-    # --------------------------------------------------------
     # COMPENSATION
-    # --------------------------------------------------------
-
     compensation_phrases = [
 
         "paid to review",
@@ -696,16 +680,14 @@ def get_closest_rule(review):
         "حصلت على منتج مجاني"
     ]
 
-
     if any(
         normalize_text(x) in text
         for x in compensation_phrases
     ):
-
         return "4.2"
 
 
-    # Generic product feedback
+    # DEFAULT FOR NORMAL PRODUCT FEEDBACK
     return "2.4"
 
 
@@ -724,10 +706,7 @@ def detect_hard_rules(review):
     }
 
 
-    # --------------------------------------------------------
     # PRICE
-    # --------------------------------------------------------
-
     price_patterns = [
 
         "found it cheaper elsewhere",
@@ -755,7 +734,6 @@ def detect_hard_rules(review):
         "نفسه ارخص"
     ]
 
-
     if any(
         normalize_text(x) in text
         for x in price_patterns
@@ -771,10 +749,7 @@ def detect_hard_rules(review):
         return result
 
 
-    # --------------------------------------------------------
     # AVAILABILITY
-    # --------------------------------------------------------
-
     availability_patterns = [
 
         "out of stock",
@@ -797,7 +772,6 @@ def detect_hard_rules(review):
         "متى يرجع للمخزون"
     ]
 
-
     if any(
         normalize_text(x) in text
         for x in availability_patterns
@@ -813,10 +787,7 @@ def detect_hard_rules(review):
         return result
 
 
-    # --------------------------------------------------------
     # DAMAGE
-    # --------------------------------------------------------
-
     damage_patterns = [
 
         "broken",
@@ -840,7 +811,6 @@ def detect_hard_rules(review):
         "وصل تالف"
     ]
 
-
     if any(
         normalize_text(x) in text
         for x in damage_patterns
@@ -856,10 +826,7 @@ def detect_hard_rules(review):
         return result
 
 
-    # --------------------------------------------------------
     # MISSING
-    # --------------------------------------------------------
-
     missing_patterns = [
 
         "missing item",
@@ -882,7 +849,6 @@ def detect_hard_rules(review):
         "شيء ناقص",
         "شي ناقص"
     ]
-
 
     if any(
         normalize_text(x) in text
@@ -936,7 +902,7 @@ def build_prompt(
     return f"""
 You are a highly accurate Noon product-review moderation classifier.
 
-Evaluate ONE customer review according to the provided rules.
+Evaluate ONE customer review according to the rules below.
 
 ============================================================
 MOST IMPORTANT PRINCIPLE
@@ -945,7 +911,7 @@ MOST IMPORTANT PRINCIPLE
 A customer is allowed to express negative opinions about
 the PRODUCT.
 
-Normal product criticism should NOT be removed.
+Normal product criticism must NOT be removed automatically.
 
 Examples of ALLOWED product criticism:
 
@@ -968,10 +934,10 @@ Arabic:
 "البطارية بتخلص بسرعة"
 "المنتج غير مفيد"
 
-These are normal opinions about the product.
+These are normal product opinions.
 
 ============================================================
-OFFENSIVE / ABUSIVE LANGUAGE
+OFFENSIVE LANGUAGE
 ============================================================
 
 You MUST identify genuinely offensive, abusive, vulgar,
@@ -994,10 +960,7 @@ These should be NOT_ALLOWED under rule 1.2.
 
 IMPORTANT:
 
-Do not classify normal negative product adjectives as
-offensive automatically.
-
-For example:
+Do not classify every negative word as offensive.
 
 "The product is bad."
 "The battery is terrible."
@@ -1005,7 +968,7 @@ For example:
 
 are normally ALLOWED when they are simply product opinions.
 
-Use the FULL CONTEXT of the review.
+Use the FULL CONTEXT.
 
 ============================================================
 SECTION 1
@@ -1034,7 +997,7 @@ SECTION 2
 
 IMPORTANT:
 
-"The battery drains quickly"
+"Battery drains quickly"
 
 is NOT shipping feedback.
 
@@ -1081,7 +1044,7 @@ SECTION 4
 4.2 Compensation or financial incentive.
 
 ============================================================
-IMPORTANT RULES
+IMPORTANT
 ============================================================
 
 - Never invent a violation.
@@ -1097,8 +1060,7 @@ IMPORTANT RULES
 - Do not classify "battery", "quality", "color", "size",
   "performance", or "effectiveness" as shipping automatically.
 
-For ALLOWED reviews, you MUST still select one valid rule ID
-as the closest relevant rule.
+For ALLOWED reviews, select the closest valid rule ID.
 
 Never use:
 
@@ -1970,19 +1932,13 @@ def evaluate_review(
         )
 
 
-    # --------------------------------------------------------
-    # 1. HIGH-CONFIDENCE HARD RULES
-    # --------------------------------------------------------
-
+    # 1. Hard rules
     hard_rule_result = detect_hard_rules(
         review
     )
 
 
-    # --------------------------------------------------------
-    # 2. FIRST AI
-    # --------------------------------------------------------
-
+    # 2. First AI
     ai_result, used_model = (
         evaluate_with_reliability(
             review=review,
@@ -2002,10 +1958,7 @@ def evaluate_review(
     )
 
 
-    # --------------------------------------------------------
-    # 3. SECOND AI QUALITY CHECK
-    # --------------------------------------------------------
-
+    # 3. Second AI quality check
     try:
 
         second_result = call_ai_adjudicator(
@@ -2028,14 +1981,10 @@ def evaluate_review(
 
     except Exception:
 
-        # Keep first valid AI result if second check fails.
         pass
 
 
-    # --------------------------------------------------------
-    # 4. HARD RULES OVERRIDE AI
-    # --------------------------------------------------------
-
+    # 4. Hard rules always override AI
     ai_result = apply_hard_rules(
         result=ai_result,
         hard_rule_result=hard_rule_result,
@@ -2043,10 +1992,7 @@ def evaluate_review(
     )
 
 
-    # --------------------------------------------------------
-    # 5. ALLOWED REVIEWS GET CLOSEST VALID RULE
-    # --------------------------------------------------------
-
+    # 5. Allowed reviews get closest rule
     ai_result = enforce_allowed_closest_rule(
         result=ai_result,
         review=review,
@@ -2054,10 +2000,7 @@ def evaluate_review(
     )
 
 
-    # --------------------------------------------------------
-    # 6. FINAL SAFETY
-    # --------------------------------------------------------
-
+    # 6. Final safety
     ai_result = final_safety_check(
         result=ai_result,
         review=review,
@@ -2065,10 +2008,7 @@ def evaluate_review(
     )
 
 
-    # --------------------------------------------------------
-    # 7. FINAL VALIDATION
-    # --------------------------------------------------------
-
+    # 7. Final validation
     validate_result(
         ai_result
     )
@@ -2088,7 +2028,7 @@ def evaluate_review(
 
 # ============================================================
 # ============================================================
-# ORIGINAL UI
+# UI
 # ============================================================
 # ============================================================
 
@@ -2098,7 +2038,7 @@ st.title(
 
 
 # ============================================================
-# OUTPUT LANGUAGE
+# LANGUAGE
 # ============================================================
 
 language = st.radio(
@@ -2123,7 +2063,7 @@ review_text = st.text_area(
 
 
 # ============================================================
-# ORIGINAL BUTTON LAYOUT
+# BUTTONS
 # ============================================================
 
 button_col1, button_col2, button_col3 = st.columns(
@@ -2242,10 +2182,7 @@ if "moderation_result" in st.session_state:
 
         st.markdown(
             """
-            <div style="
-                font-size:20px;
-                margin-bottom:22px;
-            ">
+            <div class="result-line">
                 <strong>Decision:</strong>
                 <span style="color:#21a366;">
                     ✓ Allowed
@@ -2260,10 +2197,7 @@ if "moderation_result" in st.session_state:
 
         st.markdown(
             """
-            <div style="
-                font-size:20px;
-                margin-bottom:22px;
-            ">
+            <div class="result-line">
                 <strong>Decision:</strong>
                 <span style="color:#ff4b5c;">
                     ❌ Not allowed
@@ -2281,10 +2215,7 @@ if "moderation_result" in st.session_state:
 
     st.markdown(
         f"""
-        <div style="
-            font-size:20px;
-            margin-bottom:22px;
-        ">
+        <div class="result-line">
             <strong>Rule ID:</strong>
             {result["rule_id"]}
         </div>
@@ -2299,10 +2230,7 @@ if "moderation_result" in st.session_state:
 
     st.markdown(
         f"""
-        <div style="
-            font-size:20px;
-            margin-bottom:22px;
-        ">
+        <div class="result-line">
             <strong>Main Guideline Section:</strong>
             {result["section_number"]}.
             {result["section_title"]}
@@ -2318,10 +2246,7 @@ if "moderation_result" in st.session_state:
 
     st.markdown(
         f"""
-        <div style="
-            font-size:20px;
-            margin-bottom:22px;
-        ">
+        <div class="result-line">
             <strong>Specific Sub-rule:</strong>
             Point {result["point_number"]}:
             {result["point_text"]}
@@ -2337,11 +2262,7 @@ if "moderation_result" in st.session_state:
 
     st.markdown(
         f"""
-        <div style="
-            font-size:20px;
-            line-height:1.7;
-            margin-bottom:30px;
-        ">
+        <div class="result-line">
             <strong>Reason:</strong>
             {result["reason"]}
         </div>
