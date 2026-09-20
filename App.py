@@ -50,8 +50,6 @@ st.title("Product Review Moderation Tool")
 api_key = os.environ.get("GROQ_API_KEY")
 client = Groq(api_key=api_key) if api_key else None
 
-DEFAULT_MODEL = "qwen/qwen3.8-27b"
-
 if "review_input" not in st.session_state:
     st.session_state.review_input = ""
 if "result_text" not in st.session_state:
@@ -107,62 +105,77 @@ if evaluate_btn:
         if not api_key:
             st.error("GROQ_API_KEY environment variable is missing.")
         else:
-            try:
-                if lang_option == "English":
-                    lang_instruction = """
-                    Output the ENTIRE evaluation strictly in English.
+            if lang_option == "English":
+                lang_instruction = """
+                Output the ENTIRE evaluation strictly in English.
 
-                    OUTPUT FORMAT TEMPLATE:
-                    * **Decision:** [Must be strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
-                    * **Main Guideline Section:** [Exact Section number and title verbatim from the article]
-                    * **Specific Sub-rule:** [Exact Point designation and text verbatim from the article]
-                    * **Comment:** [Explanation text starting directly without any greeting or salutation]
-                    """
-                else:
-                    lang_instruction = """
-                    Output the ENTIRE evaluation strictly in clear, professional Arabic. Translate all standard labels and guidelines accurately to Arabic.
+                OUTPUT FORMAT TEMPLATE:
+                * **Decision:** [Must be strictly '✅ Allowed — it should not be removed' OR '❌ Not allowed — the review should be removed']
+                * **Main Guideline Section:** [Exact Section number and title verbatim from the article]
+                * **Specific Sub-rule:** [Exact Point designation and text verbatim from the article]
+                * **Comment:** [Explanation text starting directly without any greeting or salutation]
+                """
+            else:
+                lang_instruction = """
+                Output the ENTIRE evaluation strictly in clear, professional Arabic. Translate all standard labels and guidelines accurately to Arabic.
 
-                    OUTPUT FORMAT TEMPLATE:
-                    * **القرار:** [إما '✅ مسموح — لا ينبغي إزالته' أو '❌ غير مسموح — ينبغي إزالة المراجعة']
-                    * **القسم الرئيسي للإرشادات:** [ترجمة دقيقة لحجم القسم ورقمه]
-                    * **القاعدة الفرعية:** [ترجمة دقيقة للنقطة والمضمون]
-                    * **التعليق:** [شرح مهني يبدأ مباشرة بدون أي مقدمة أو ألقاب]
-                    """
-
-                prompt = f"""
-                You are an automated compliance officer for noon evaluating product reviews.
-                Evaluate the customer review based STRICTLY on the official Guidelines Article provided below.
-
-                Guidelines Article:
-                {GUIDELINES}
-
-                Customer Review to evaluate: "{review_text}"
-
-                {lang_instruction}
-
-                EVALUATION RULES:
-                1. Select the correct section and sub-rule matching the official article content.
-                2. Evaluate the review against the article:
-                   - If NOT ALLOWED: Select the exact violated Section and Point.
-                   - If ALLOWED: Select the closest and most relevant Section and Point from the article, and explicitly explain in the Comment why the review does NOT violate that rule.
-                3. CRITICAL SECURITY RULE: Any review containing vulgar, offensive, or distasteful language MUST be marked as NOT ALLOWED under Section 1 - Point 2.
-                4. CRITICAL DAMAGE RULE: Any review mentioning that the product arrived broken, damaged, crushed, or destroyed (e.g., "مكسور", "خربان", "تالف", "مهلك") MUST be marked as NOT ALLOWED under '2. Seller, Order, or Shipping Feedback' - 'Point 4: Product damage or missing items', regardless of whether the customer expresses hypothetical liking for the product.
-
-                CRITICAL INSTRUCTION FOR COMMENT:
-                - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', 'مرحباً عزيزي البائع' or 'عزيزي البائع'.
-                - Start directly with the professional explanation text.
+                OUTPUT FORMAT TEMPLATE:
+                * **القرار:** [إما '✅ مسموح — لا ينبغي إزالته' أو '❌ غير مسموح — ينبغي إزالة المراجعة']
+                * **القسم الرئيسي للإرشادات:** [ترجمة دقيقة لحجم القسم ورقمه]
+                * **القاعدة الفرعية:** [ترجمة دقيقة للنقطة والمضمون]
+                * **التعليق:** [شرح مهني يبدأ مباشرة بدون أي مقدمة أو ألقاب]
                 """
 
-                response = client.chat.completions.create(
-                    model=DEFAULT_MODEL,
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.0
-                )
+            prompt = f"""
+            You are an automated compliance officer for noon evaluating product reviews.
+            Evaluate the customer review based STRICTLY on the official Guidelines Article provided below.
 
-                st.session_state.result_text = response.choices[0].message.content
+            Guidelines Article:
+            {GUIDELINES}
 
-            except Exception as e:
-                st.error(f"Error: {e}")
+            Customer Review to evaluate: "{review_text}"
+
+            {lang_instruction}
+
+            EVALUATION RULES:
+            1. Select the correct section and sub-rule matching the official article content.
+            2. Evaluate the review against the article:
+               - If NOT ALLOWED: Select the exact violated Section and Point.
+               - If ALLOWED: Select the closest and most relevant Section and Point from the article, and explicitly explain in the Comment why the review does NOT violate that rule.
+            3. CRITICAL SECURITY RULE: Any review containing vulgar, offensive, or distasteful language MUST be marked as NOT ALLOWED under Section 1 - Point 2.
+            4. CRITICAL DAMAGE RULE: Any review mentioning that the product arrived broken, damaged, crushed, or destroyed (e.g., "مكسور", "خربان", "تالف", "مهلك") MUST be marked as NOT ALLOWED under '2. Seller, Order, or Shipping Feedback' - 'Point 4: Product damage or missing items', regardless of whether the customer expresses hypothetical liking for the product.
+
+            CRITICAL INSTRUCTION FOR COMMENT:
+            - Do NOT include any greetings or salutations like 'Dear Seller,', 'Hi,', 'مرحباً عزيزي البائع' or 'عزيزي البائع'.
+            - Start directly with the professional explanation text.
+            """
+
+            # النماذج الرسمية المعتمدة حالياً من Groq
+            active_models = [
+                "llama-3.3-70b-versatile",
+                "llama-3.1-8b-instant",
+                "gemma2-9b-it"
+            ]
+
+            success = False
+            last_error = ""
+
+            for model_id in active_models:
+                try:
+                    response = client.chat.completions.create(
+                        model=model_id,
+                        messages=[{"role": "user", "content": prompt}],
+                        temperature=0.0
+                    )
+                    st.session_state.result_text = response.choices[0].message.content
+                    success = True
+                    break
+                except Exception as e:
+                    last_error = str(e)
+                    continue
+
+            if not success:
+                st.error(f"Error: {last_error if last_error else 'Could not process request.'}")
     else:
         st.warning("Please enter a review first.")
 
