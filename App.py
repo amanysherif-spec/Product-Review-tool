@@ -896,26 +896,34 @@ def apply_hard_rule(result, rule_id, language):
 
         comments = {
             "3.1":
-                "التعليق يذكر أن المنتج تم العثور عليه بسعر أرخص في مكان آخر، وهذا يندرج تحت التعليقات المتعلقة بالعثور على سعر أقل لدى جهة أخرى. ووفقًا لإرشادات تقييمات العملاء في نون، هذا النوع من التعليقات غير مسموح.",
+                "التعليق يذكر أن العميل وجد نفس المنتج بسعر أرخص في مكان آخر، أي أنه يقارن سعر المنتج بسعره لدى متجر أو جهة أخرى بدلًا من التركيز على تجربة استخدام المنتج. "
+                "ووفقًا لإرشادات تقييمات العملاء في نون، التعليقات التي تشير إلى العثور على المنتج بسعر أرخص في مكان آخر غير مسموح بها.",
 
             "3.2":
-                "التعليق يتحدث عن توفر المنتج أو حالة المخزون، مثل كونه غير متوفر أو السؤال عن موعد توفره مرة أخرى. ووفقًا لإرشادات تقييمات العملاء في نون، هذا النوع من التعليقات غير مسموح.",
+                "التعليق يتحدث عن توفر المنتج أو حالة المخزون، مثل الإشارة إلى أن المنتج غير متوفر أو السؤال عن موعد توفره مرة أخرى. "
+                "هذا النوع من التعليقات يتعلق بحالة المخزون وليس بتجربة العميل مع المنتج نفسه، ولذلك ووفقًا لإرشادات تقييمات العملاء في نون فهو غير مسموح.",
 
             "2.4":
-                "التعليق يذكر وجود تلف في المنتج أو نقص في جزء أو عنصر من محتوياته، وهي ملاحظات تتعلق بحالة المنتج عند الاستلام. ووفقًا لإرشادات تقييمات العملاء في نون، هذا النوع من التعليقات غير مسموح.",
+                "التعليق يذكر أن المنتج وصل تالفًا أو مكسورًا أو أن هناك جزءًا أو عنصرًا مفقودًا منه. "
+                "هذه الملاحظة تتعلق بحالة المنتج أو اكتمال محتويات الطلب عند الاستلام، ووفقًا لإرشادات تقييمات العملاء في نون فإن هذا النوع من التعليقات غير مسموح.",
         }
 
     else:
 
         comments = {
             "3.1":
-                "The review states that the product was found at a cheaper price elsewhere. Comments about finding the same product cheaper from another store or source are covered by the pricing guideline and are not allowed.",
+                "The review states that the customer found the same product at a cheaper price elsewhere. This is a comment comparing the product's price with another store or source rather than describing the product experience itself. "
+                "Under the Noon Customer Review guidelines, comments about finding the product cheaper elsewhere fall under the pricing rule and are not allowed.",
 
             "3.2":
-                "The review refers to product availability or stock status, such as the item being unavailable or asking when it will be back in stock. Comments focused on availability or stock status are not allowed.",
+                "The review refers to the product's availability or stock status, such as saying that the item is unavailable or asking when it will be back in stock. "
+                "This type of comment focuses on stock availability rather than the customer's experience with the product itself. "
+                "Under the Noon Customer Review guidelines, availability and stock-status comments are not allowed.",
 
             "2.4":
-                "The review reports product damage or a missing item, part, or accessory. This type of feedback concerns the condition or completeness of the delivered order and is not allowed under the relevant guideline.",
+                "The review reports that the product arrived damaged, broken, or with a missing item, part, or accessory. "
+                "This feedback concerns the condition or completeness of the delivered order rather than the normal use or performance of the product. "
+                "Under the Noon Customer Review guidelines, this type of damage or missing-item complaint is not allowed.",
         }
 
     result["comment"] = comments.get(
@@ -1259,7 +1267,18 @@ st.markdown(
     div[data-testid="stHorizontalBlock"]
     div[data-testid="stColumn"]:first-child
     div[data-testid="stButton"] button {
-        color: red !important;
+        background-color: #ff4b4b !important;
+        color: white !important;
+        border: 1px solid #ff4b4b !important;
+        border-radius: 6px !important;
+    }
+
+    div[data-testid="stHorizontalBlock"]
+    div[data-testid="stColumn"]:first-child
+    div[data-testid="stButton"] button:hover {
+        background-color: #ff3333 !important;
+        color: white !important;
+        border-color: #ff3333 !important;
     }
     </style>
     """,
