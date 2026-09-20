@@ -27,14 +27,22 @@ FALLBACK_MODEL = "openai/gpt-oss-20b"
 
 
 # ============================================================
-# GROQ CLIENT
+# GROQ API KEY
 # ============================================================
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+try:
+    GROQ_API_KEY = st.secrets["GROQ_API_KEY"]
+except Exception:
+    GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
 
 if not GROQ_API_KEY:
-    st.error("GROQ_API_KEY is not configured.")
+    st.error(
+        "GROQ_API_KEY is missing. "
+        "Please add GROQ_API_KEY to Streamlit Secrets."
+    )
     st.stop()
+
 
 client = Groq(api_key=GROQ_API_KEY)
 
@@ -87,7 +95,6 @@ GUIDELINES = {
 # ============================================================
 
 RULES = {
-
     "1.1": {
         "section_number": "1",
         "section_title": "Community Guideline Violations",
@@ -232,7 +239,7 @@ OUTPUT LANGUAGE:
 
 
 # ============================================================
-# TEXT NORMALIZATION
+# NORMALIZE TEXT
 # ============================================================
 
 def normalize_text(text):
@@ -242,10 +249,10 @@ def normalize_text(text):
 
     text = str(text).lower().strip()
 
-    # Remove Arabic diacritics and tatweel
+    # Remove Arabic diacritics and Tatweel
     text = re.sub(r"[\u064B-\u065F\u0670\u0640]", "", text)
 
-    # Normalize Arabic letters
+    # Arabic normalization
     replacements = {
         "أ": "ا",
         "إ": "ا",
@@ -265,32 +272,14 @@ def normalize_text(text):
 
 
 # ============================================================
-# HELPER
-# ============================================================
-
-def contains_any(text, phrases):
-
-    normalized = normalize_text(text)
-
-    for phrase in phrases:
-        if normalize_text(phrase) in normalized:
-            return True
-
-    return False
-
-
-# ============================================================
-# CLOSEST RULE
+# GET CLOSEST RULE
 # ============================================================
 
 def get_closest_rule(review):
 
     text = normalize_text(review)
 
-    # --------------------------------------------------------
     # PRICE
-    # --------------------------------------------------------
-
     price_phrases = [
         "found it cheaper elsewhere",
         "found it cheaper",
@@ -319,10 +308,7 @@ def get_closest_rule(review):
     if any(normalize_text(x) in text for x in price_phrases):
         return "3.1"
 
-    # --------------------------------------------------------
     # AVAILABILITY
-    # --------------------------------------------------------
-
     availability_phrases = [
         "out of stock",
         "out-of-stock",
@@ -345,14 +331,9 @@ def get_closest_rule(review):
     if any(normalize_text(x) in text for x in availability_phrases):
         return "3.2"
 
-    # --------------------------------------------------------
     # SELLER
-    # --------------------------------------------------------
-
     seller_phrases = [
         "seller",
-        "seller was",
-        "seller is",
         "seller service",
         "seller support",
         "seller attitude",
@@ -368,10 +349,7 @@ def get_closest_rule(review):
     if any(normalize_text(x) in text for x in seller_phrases):
         return "2.1"
 
-    # --------------------------------------------------------
     # ORDER / RETURN
-    # --------------------------------------------------------
-
     order_phrases = [
         "order",
         "ordered",
@@ -379,7 +357,6 @@ def get_closest_rule(review):
         "returned",
         "return",
         "refund",
-        "refund experience",
 
         "الطلب",
         "طلبت",
@@ -394,10 +371,7 @@ def get_closest_rule(review):
     if any(normalize_text(x) in text for x in order_phrases):
         return "2.2"
 
-    # --------------------------------------------------------
-    # SHIPPING / DELIVERY
-    # --------------------------------------------------------
-
+    # SHIPPING
     shipping_phrases = [
         "shipping",
         "delivery",
@@ -421,10 +395,7 @@ def get_closest_rule(review):
     if any(normalize_text(x) in text for x in shipping_phrases):
         return "2.3"
 
-    # --------------------------------------------------------
     # DAMAGE / MISSING
-    # --------------------------------------------------------
-
     damage_missing_phrases = [
         "broken",
         "damaged",
@@ -447,7 +418,6 @@ def get_closest_rule(review):
         "تالفه",
         "متضرر",
         "متضررة",
-        "مكسور عند الوصول",
         "جزء ناقص",
         "اجزاء ناقصه",
         "جزء مفقود",
@@ -458,10 +428,7 @@ def get_closest_rule(review):
     if any(normalize_text(x) in text for x in damage_missing_phrases):
         return "2.4"
 
-    # --------------------------------------------------------
     # PROMOTIONAL
-    # --------------------------------------------------------
-
     promotional_phrases = [
         "buy from me",
         "contact me",
@@ -472,7 +439,6 @@ def get_closest_rule(review):
         "whatsapp us",
         "call me",
         "call us",
-        "best seller",
         "discount code",
         "promo code",
 
@@ -488,16 +454,11 @@ def get_closest_rule(review):
     if any(normalize_text(x) in text for x in promotional_phrases):
         return "1.1"
 
-    # --------------------------------------------------------
     # PERSONAL INFORMATION
-    # --------------------------------------------------------
-
     personal_info_phrases = [
         "phone number",
         "mobile number",
         "email address",
-        "email",
-        "address",
         "credit card",
         "card number",
         "bank account",
@@ -508,7 +469,6 @@ def get_closest_rule(review):
         "رقم الموبايل",
         "البريد الالكتروني",
         "الايميل",
-        "العنوان",
         "رقم البطاقة",
         "رقم الحساب",
         "كلمة المرور",
@@ -518,10 +478,7 @@ def get_closest_rule(review):
     if any(normalize_text(x) in text for x in personal_info_phrases):
         return "1.4"
 
-    # --------------------------------------------------------
-    # CONFLICT / COMPENSATION
-    # --------------------------------------------------------
-
+    # CONFLICT
     conflict_phrases = [
         "i am the seller",
         "i work for the seller",
@@ -545,6 +502,7 @@ def get_closest_rule(review):
     if any(normalize_text(x) in text for x in conflict_phrases):
         return "4.1"
 
+    # COMPENSATION
     compensation_phrases = [
         "paid to review",
         "paid for review",
@@ -564,28 +522,12 @@ def get_closest_rule(review):
     if any(normalize_text(x) in text for x in compensation_phrases):
         return "4.2"
 
-    # --------------------------------------------------------
-    # DEFAULT
-    # --------------------------------------------------------
-    #
-    # Important:
-    # Generic product complaints such as:
-    # "bad product"
-    # "battery drains quickly"
-    # "not useful"
-    # "I don't like it"
-    #
-    # are closest to product-related feedback.
-    #
-    # This does NOT mean the review is a violation.
-    # It is simply the closest available guideline.
-    # --------------------------------------------------------
-
+    # Generic product feedback
     return "2.4"
 
 
 # ============================================================
-# HARD RULE DETECTION
+# HARD RULES
 # ============================================================
 
 def detect_hard_rules(review):
@@ -597,10 +539,7 @@ def detect_hard_rules(review):
         "reason": None
     }
 
-    # --------------------------------------------------------
-    # PRICE COMPARISON
-    # --------------------------------------------------------
-
+    # PRICE
     price_patterns = [
         "found it cheaper elsewhere",
         "found it cheaper",
@@ -627,19 +566,17 @@ def detect_hard_rules(review):
         "نفسه ارخص"
     ]
 
-    if any(normalize_text(p) in text for p in price_patterns):
+    if any(normalize_text(x) in text for x in price_patterns):
 
         result["rule_id"] = "3.1"
         result["reason"] = (
-            "The review explicitly compares the product price with a cheaper price elsewhere."
+            "The review explicitly compares the product price "
+            "with a cheaper price elsewhere."
         )
 
         return result
 
-    # --------------------------------------------------------
     # AVAILABILITY
-    # --------------------------------------------------------
-
     availability_patterns = [
         "out of stock",
         "out-of-stock",
@@ -661,19 +598,17 @@ def detect_hard_rules(review):
         "متى يرجع للمخزون"
     ]
 
-    if any(normalize_text(p) in text for p in availability_patterns):
+    if any(normalize_text(x) in text for x in availability_patterns):
 
         result["rule_id"] = "3.2"
         result["reason"] = (
-            "The review explicitly discusses product availability or stock status."
+            "The review explicitly discusses product availability "
+            "or stock status."
         )
 
         return result
 
-    # --------------------------------------------------------
     # DAMAGE
-    # --------------------------------------------------------
-
     damage_patterns = [
         "broken",
         "damaged",
@@ -696,19 +631,17 @@ def detect_hard_rules(review):
         "وصل تالف"
     ]
 
-    if any(normalize_text(p) in text for p in damage_patterns):
+    if any(normalize_text(x) in text for x in damage_patterns):
 
         result["rule_id"] = "2.4"
         result["reason"] = (
-            "The review explicitly reports that the product arrived damaged or physically broken."
+            "The review explicitly reports that the product "
+            "arrived damaged or physically broken."
         )
 
         return result
 
-    # --------------------------------------------------------
-    # MISSING ITEMS / PARTS
-    # --------------------------------------------------------
-
+    # MISSING
     missing_patterns = [
         "missing item",
         "missing items",
@@ -731,11 +664,12 @@ def detect_hard_rules(review):
         "شي ناقص"
     ]
 
-    if any(normalize_text(p) in text for p in missing_patterns):
+    if any(normalize_text(x) in text for x in missing_patterns):
 
         result["rule_id"] = "2.4"
         result["reason"] = (
-            "The review explicitly reports a missing product, part, or accessory."
+            "The review explicitly reports a missing product, "
+            "part, or accessory."
         )
 
         return result
@@ -744,278 +678,211 @@ def detect_hard_rules(review):
 
 
 # ============================================================
-# PROMPT
+# AI PROMPT
 # ============================================================
 
 def build_prompt(review, language, hard_rule_result):
 
     closest_rule = get_closest_rule(review)
 
-    hard_rule_text = "NONE"
-
     if hard_rule_result.get("rule_id"):
+
         hard_rule_text = (
-            f"HIGH-CONFIDENCE RULE DETECTED: "
+            f"HIGH-CONFIDENCE RULE: "
             f"{hard_rule_result['rule_id']} - "
             f"{RULES[hard_rule_result['rule_id']]['point_text']}"
         )
 
+    else:
+
+        hard_rule_text = "NONE"
+
     closest_rule_text = (
-        f"{closest_rule} - {RULES[closest_rule]['point_text']}"
+        f"{closest_rule} - "
+        f"{RULES[closest_rule]['point_text']}"
     )
 
     return f"""
-You are a strict and highly accurate Noon product-review moderation classifier.
+You are a highly accurate Noon product-review moderation classifier.
 
-Your job is to classify ONE customer product review according to the provided Noon moderation guidelines.
+Evaluate ONE customer review according to the provided guidelines.
+
+============================================================
+MOST IMPORTANT PRINCIPLE
+============================================================
+
+A customer is allowed to express negative opinions about the PRODUCT.
+
+These should normally be ALLOWED:
+
+"The product is bad."
+"The product is disappointing."
+"I don't like it."
+"The battery is terrible."
+"The battery drains quickly."
+"It is not useful."
+"The quality is poor."
+"The color is ugly."
+"I regret buying it."
+"The product is expensive."
+
+Arabic examples:
+
+"المنتج سيء"
+"المنتج وحش"
+"مش عاجبني"
+"البطارية ضعيفة"
+"البطارية بتخلص بسرعة"
+"المنتج غير مفيد"
+
+Do NOT classify normal product criticism as offensive language.
+
+============================================================
+OFFENSIVE LANGUAGE
+============================================================
+
+You MUST detect genuinely offensive, abusive, vulgar,
+obscene, insulting, inappropriate, or distasteful language.
+
+Examples:
+
+"This product is disgusting."
+"This is fucking garbage."
+"The seller is an idiot."
+"The seller is disgusting."
+
+Arabic:
+
+"المنتج مقرف"
+"المنتج زبالة"
+"البائع غبي ومقرف"
+
+These should be NOT_ALLOWED under 1.2.
+
+However:
+
+"The product is bad."
+"The battery is terrible."
+"I hate this product."
+
+are normally ALLOWED if they are simply opinions about the product
+and do not contain abusive/vulgar language.
+
+Use the context of the ENTIRE review.
+
+Do not block a review because it contains one negative adjective.
+
+============================================================
+RULE 1
+============================================================
+
+1.1 Promotional / advertising
+
+1.2 Offensive, abusive, inappropriate, vulgar,
+or distasteful language
+
+1.3 Hate speech or discriminatory content
+
+1.4 Personal or sensitive information
+
+============================================================
+RULE 2
+============================================================
+
+2.1 Seller performance or reputation
+
+2.2 Ordering or return experience
+
+2.3 Shipping, packaging, or delivery speed
+
+2.4 Product damage or missing items
 
 IMPORTANT:
-You must evaluate the meaning and context of the ENTIRE review.
-Do NOT classify based on one isolated negative word.
 
-============================================================
-CORE PRINCIPLE
-============================================================
-
-A customer is allowed to express a negative opinion about the PRODUCT itself.
-
-Examples that should normally remain ALLOWED:
-
-- "The product is bad."
-- "I don't like the product."
-- "The quality is disappointing."
-- "The battery drains quickly."
-- "The battery is weak."
-- "It is not useful."
-- "The color is ugly."
-- "The product does not work as expected."
-- "I regret buying it."
-- "The product is expensive."
-- "I wish it came in more colors."
-
-These are normal product opinions unless they contain a separate policy violation.
-
-Do NOT classify ordinary product criticism as:
-- offensive language
-- seller feedback
-- shipping feedback
-- damage
-- missing item
-
-simply because the review is negative.
-
-============================================================
-OFFENSIVE / ABUSIVE / INAPPROPRIATE LANGUAGE
-============================================================
-
-You MUST carefully detect language that is genuinely offensive, abusive,
-vulgar, insulting, obscene, or clearly inappropriate.
-
-This includes both English and Arabic.
-
-Examples that should be classified as NOT_ALLOWED under rule 1.2:
-
-- "This product is disgusting."
-- "The product is fucking useless."
-- "This is fucking garbage."
-- "The seller is an idiot."
-- "The seller is disgusting."
-- "المنتج مقرف"
-- "المنتج زبالة"
-- "البائع غبي ومقرف"
-
-However, do NOT over-classify ordinary negative adjectives.
-
-For example:
-
-- "The product is bad." -> ALLOWED
-- "The product is disappointing." -> ALLOWED
-- "The battery is terrible." -> ALLOWED
-- "The product is useless for me." -> ALLOWED unless the wording becomes clearly abusive/vulgar
-- "I hate this product." -> normally ALLOWED as a product opinion
-
-The important distinction is:
-PRODUCT CRITICISM != OFFENSIVE LANGUAGE
-
-But clearly vulgar, obscene, abusive, insulting, or distasteful wording
-must be classified as rule 1.2.
-
-Consider Arabic slang, spelling variations, repeated letters,
-missing spaces, and informal writing.
-
-============================================================
-RULE 1 - COMMUNITY GUIDELINES
-============================================================
-
-1.1 Promotional / advertising:
-Remove content that promotes a seller, business, product/service,
-contact details, promotional code, or advertising activity.
-
-1.2 Offensive / abusive / inappropriate:
-Remove genuinely offensive, abusive, vulgar, obscene, insulting,
-or clearly inappropriate/distasteful language.
-
-1.3 Hate / discrimination:
-Remove hate speech or discriminatory content targeting protected groups.
-
-1.4 Personal / sensitive information:
-Remove personal or sensitive information such as phone numbers,
-email addresses, passwords, financial information, etc.
-
-============================================================
-RULE 2 - SELLER / ORDER / SHIPPING
-============================================================
-
-2.1 Seller performance/reputation:
-Examples:
-- seller was rude
-- seller was dishonest
-- seller service was bad
-
-2.2 Ordering / return:
-Examples:
-- order was cancelled
-- return was difficult
-- refund problem
-
-2.3 Shipping / packaging / delivery:
-Examples:
-- delivery was late
-- courier was bad
-- packaging was poor
-- arrived after 10 days
-
-2.4 Product damage / missing:
-Examples:
-- product arrived broken
-- product was damaged
-- missing accessory
-- missing part
-
-IMPORTANT:
-Do NOT classify normal PRODUCT PERFORMANCE complaints as 2.3.
-
-For example:
 "The battery drains quickly"
-is NOT shipping/delivery feedback.
+
+is NOT shipping feedback.
 
 It is normal product feedback and should be ALLOWED.
 
 ============================================================
-RULE 3 - PRICE / AVAILABILITY
+RULE 3
 ============================================================
 
-3.1 Price comparison:
-"Found it cheaper elsewhere"
-must be NOT_ALLOWED.
-
-Arabic examples:
-- وجدته بسعر ارخص
-- وجدته أرخص
-- لقيته بسعر ارخص
-- ارخص في مكان اخر
-- نفس المنتج ارخص
-
-3.2 Availability:
-Comments specifically discussing stock availability are NOT_ALLOWED.
+3.1 Finding the product cheaper elsewhere.
 
 Examples:
-- "It is out of stock again."
-- "When will this be available?"
-- "It is unavailable."
 
-BUT:
+"Found it cheaper elsewhere"
+"Found the same product cheaper"
+"وجدته بسعر ارخص"
+"لقيته ارخص"
+"نفس المنتج ارخص"
+
+These are NOT_ALLOWED.
+
+3.2 Stock / availability.
+
+Examples:
+
+"Out of stock"
+"When will this be available?"
+"It is unavailable."
+
+These are NOT_ALLOWED.
+
+But:
 
 "Hope it comes in more colors"
-is NOT a stock-status violation and should remain ALLOWED.
+
+is ALLOWED.
 
 ============================================================
-RULE 4 - CONFLICT OF INTEREST
+RULE 4
 ============================================================
 
-4.1:
-Review created by seller, competitor, employee, friend,
-family member, or business partner.
+4.1 Conflict of interest.
 
-4.2:
-Review posted in exchange for money, compensation,
-free product, financial incentive, or another benefit.
+4.2 Compensation or financial incentive.
 
 ============================================================
-VERY IMPORTANT DECISION RULES
+IMPORTANT
 ============================================================
 
-1. If the review contains an obvious high-confidence policy violation,
-classify NOT_ALLOWED.
+- Never invent a violation.
+- Negative product feedback can be ALLOWED.
+- Offensive language must be NOT_ALLOWED.
+- Seller complaints are NOT_ALLOWED.
+- Shipping complaints are NOT_ALLOWED.
+- Damage/missing items are NOT_ALLOWED.
+- Competitor price comparison is NOT_ALLOWED.
+- Stock-status complaints are NOT_ALLOWED.
+- General wishes about product availability can be ALLOWED.
 
-2. If the review is simply a negative opinion about the product,
-classify ALLOWED.
+For ALLOWED reviews, you MUST still select one of the existing
+rule IDs as the closest relevant guideline.
 
-3. Do not confuse "bad product" with "offensive language".
+Never use:
+NONE
+N/A
+No
+Unknown
 
-4. Do not confuse "battery is bad" with shipping.
-
-5. Do not confuse "expensive" with competitor price comparison.
-
-6. "Found it cheaper elsewhere" is NOT_ALLOWED under 3.1.
-
-7. "Hope it comes in more colors" is ALLOWED.
-
-8. Damage and missing-item statements are NOT_ALLOWED under 2.4.
-
-9. Seller-related complaints are NOT_ALLOWED under 2.1.
-
-10. Shipping/delivery complaints are NOT_ALLOWED under 2.3.
-
-11. Product quality/performance complaints without another violation
-are ALLOWED.
-
-12. Never invent a violation.
-
-============================================================
-ALLOWED REVIEWS - RULE ID
-============================================================
-
-For an ALLOWED review, you MUST still provide one of the existing rule IDs.
-
-Do NOT use:
-- NONE
-- N/A
-- No
-- Unknown
-
-The rule ID for an ALLOWED review should represent the CLOSEST
-relevant guideline category, not a violation.
-
-A generic product complaint can use 2.4 as the closest available category,
-but explicitly explain that the review does NOT report damage or missing items.
-
-Closest-rule reference:
+Closest rule for this review:
 {closest_rule_text}
 
-============================================================
-HIGH-CONFIDENCE DETECTOR
-============================================================
-
+High-confidence detector:
 {hard_rule_text}
 
-If a high-confidence detector is provided above, follow it unless
-the actual review clearly proves the detector is not applicable.
-
 ============================================================
-OUTPUT
+REVIEW
 ============================================================
 
-Return ONLY valid JSON according to the provided schema.
-
-Do not add markdown.
-Do not add comments outside JSON.
-Do not add greetings.
-
-Review:
 {review}
 
 {get_language_instruction(language)}
+
+Return ONLY valid JSON.
 """
 
 
@@ -1026,6 +893,7 @@ Review:
 REVIEW_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
+
     "properties": {
 
         "decision": {
@@ -1080,7 +948,7 @@ REVIEW_SCHEMA = {
 
 
 # ============================================================
-# MODEL CALL
+# CALL GROQ
 # ============================================================
 
 def call_model(
@@ -1105,8 +973,8 @@ def call_model(
             {
                 "role": "system",
                 "content": (
-                    "You are a highly accurate policy classification "
-                    "engine. Follow the supplied policy exactly."
+                    "You are a strict and accurate product review "
+                    "moderation engine."
                 )
             },
             {
@@ -1134,13 +1002,13 @@ def call_model(
     content = response.choices[0].message.content
 
     if not content:
-        raise ValueError("Empty model response.")
+        raise ValueError("Empty response from Groq.")
 
     return json.loads(content)
 
 
 # ============================================================
-# AI RELIABILITY
+# RELIABLE AI CALL
 # ============================================================
 
 def evaluate_with_reliability(
@@ -1178,7 +1046,7 @@ def evaluate_with_reliability(
 
                 error_text = str(e).lower()
 
-                # Do not keep retrying a model that does not exist.
+                # If model is unavailable, move to fallback model
                 if (
                     "decommissioned" in error_text
                     or "model_not_found" in error_text
@@ -1196,7 +1064,7 @@ def evaluate_with_reliability(
 
 
 # ============================================================
-# AI SECOND REVIEW / ADJUDICATOR
+# SECOND AI QUALITY CHECK
 # ============================================================
 
 def call_ai_adjudicator(
@@ -1206,43 +1074,51 @@ def call_ai_adjudicator(
     first_result
 ):
 
-    adjudication_prompt = f"""
-You are the FINAL QUALITY-CONTROL reviewer for a product review
-moderation decision.
+    prompt = f"""
+You are the FINAL QUALITY CONTROL reviewer.
 
-Review the original customer review and the first AI classification.
-
-Your task is to correct the first classification if necessary.
+Check the first AI classification against the Noon product review
+moderation rules.
 
 Pay special attention to:
 
-1. Offensive / abusive / vulgar / inappropriate language.
-2. Arabic offensive language and slang.
-3. The difference between ordinary product criticism and offensive language.
-4. Seller complaints.
-5. Shipping complaints.
-6. Damage or missing items.
-7. "Found it cheaper elsewhere" -> 3.1 NOT_ALLOWED.
-8. Stock/availability complaints -> 3.2 NOT_ALLOWED.
-9. "Hope it comes in more colors" -> ALLOWED.
-10. Product performance complaints such as battery problems -> normally ALLOWED.
-11. Generic negative product opinions -> normally ALLOWED.
-12. Never invent a violation.
+- Offensive / vulgar / abusive language
+- Arabic offensive language
+- Difference between product criticism and offensive language
+- Seller complaints
+- Shipping complaints
+- Damage
+- Missing items
+- Competitor price comparison
+- Availability
 
-IMPORTANT OFFENSIVE-LANGUAGE DISTINCTION:
+Examples:
 
 "The product is bad." -> ALLOWED
-"The product is disappointing." -> ALLOWED
+
 "The battery is terrible." -> ALLOWED
-"I don't like it." -> ALLOWED
+
+"I don't like this product." -> ALLOWED
 
 "The product is disgusting." -> NOT_ALLOWED 1.2
-"المنتج مقرف" -> NOT_ALLOWED 1.2
-"المنتج زبالة" -> NOT_ALLOWED 1.2
-"البائع غبي ومقرف" -> NOT_ALLOWED 1.2
 
-Do not remove a review merely because it is strongly negative.
-Remove it when the actual wording falls under the policy.
+"المنتج مقرف" -> NOT_ALLOWED 1.2
+
+"المنتج زبالة" -> NOT_ALLOWED 1.2
+
+"Found it cheaper elsewhere" -> NOT_ALLOWED 3.1
+
+"وجدته بسعر ارخص" -> NOT_ALLOWED 3.1
+
+"Out of stock" -> NOT_ALLOWED 3.2
+
+"Hope it comes in more colors" -> ALLOWED
+
+"Product arrived broken" -> NOT_ALLOWED 2.4
+
+"Battery drains quickly" -> ALLOWED
+
+Do not over-block normal product criticism.
 
 ============================================================
 ORIGINAL REVIEW
@@ -1251,6 +1127,838 @@ ORIGINAL REVIEW
 {review}
 
 ============================================================
-FIRST AI RESULT
-==========
+FIRST RESULT
+============================================================
+
+{json.dumps(first_result, ensure_ascii=False, indent=2)}
+
+============================================================
+TASK
+============================================================
+
+Return the corrected final result as JSON only.
+
+The rule_id MUST be one of:
+
+1.1
+1.2
+1.3
+1.4
+2.1
+2.2
+2.3
+2.4
+3.1
+3.2
+4.1
+4.2
+
+For ALLOWED reviews, use the closest valid rule.
+
+Never use NONE or N/A.
+
+{get_language_instruction(language)}
 """
+
+    response = client.chat.completions.create(
+
+        model=model,
+
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "You are the final quality-control reviewer."
+                )
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+
+        temperature=0,
+
+        max_tokens=1200,
+
+        reasoning_effort="high",
+
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "product_review_adjudication",
+                "strict": True,
+                "schema": REVIEW_SCHEMA
+            }
+        }
+    )
+
+    content = response.choices[0].message.content
+
+    if not content:
+        raise ValueError("Empty adjudicator response.")
+
+    return json.loads(content)
+
+
+# ============================================================
+# VALIDATE
+# ============================================================
+
+def validate_result(result):
+
+    if not isinstance(result, dict):
+        raise ValueError("Invalid AI result.")
+
+    required_fields = [
+        "decision",
+        "rule_id",
+        "section_number",
+        "section_title",
+        "point_number",
+        "point_text",
+        "reason",
+        "comment"
+    ]
+
+    for field in required_fields:
+
+        if field not in result:
+            raise ValueError(
+                f"Missing field: {field}"
+            )
+
+    if result["decision"] not in [
+        "ALLOWED",
+        "NOT_ALLOWED"
+    ]:
+        raise ValueError(
+            "Invalid decision."
+        )
+
+    if result["rule_id"] not in RULES:
+        raise ValueError(
+            f"Invalid rule ID: {result['rule_id']}"
+        )
+
+    if not str(result["reason"]).strip():
+        raise ValueError("Empty reason.")
+
+    if not str(result["comment"]).strip():
+        raise ValueError("Empty comment.")
+
+    return True
+
+
+# ============================================================
+# ENFORCE RULE CONSISTENCY
+# ============================================================
+
+def enforce_rule_consistency(result):
+
+    rule_id = result["rule_id"]
+
+    rule = RULES[rule_id]
+
+    result["section_number"] = rule["section_number"]
+    result["section_title"] = rule["section_title"]
+    result["point_number"] = rule["point_number"]
+    result["point_text"] = rule["point_text"]
+
+    return result
+
+
+# ============================================================
+# APPLY ARABIC LABELS
+# ============================================================
+
+def apply_arabic_labels(result):
+
+    rule_id = result["rule_id"]
+
+    result["section_title"] = ARABIC_SECTIONS[
+        RULES[rule_id]["section_number"]
+    ]
+
+    result["point_text"] = ARABIC_POINTS[rule_id]
+
+    return result
+
+
+# ============================================================
+# HARD RULE OVERRIDE
+# ============================================================
+
+def apply_hard_rules(
+    result,
+    hard_rule_result,
+    language
+):
+
+    hard_rule_id = hard_rule_result.get("rule_id")
+
+    if not hard_rule_id:
+        return result
+
+    result["decision"] = "NOT_ALLOWED"
+    result["rule_id"] = hard_rule_id
+
+    result = enforce_rule_consistency(result)
+
+    if language == "English":
+
+        if hard_rule_id == "3.1":
+
+            result["reason"] = (
+                "The review explicitly states that the product "
+                "was found cheaper elsewhere."
+            )
+
+            result["comment"] = (
+                "Not allowed: the review compares the product "
+                "with a cheaper price elsewhere."
+            )
+
+        elif hard_rule_id == "3.2":
+
+            result["reason"] = (
+                "The review discusses product availability "
+                "or stock status."
+            )
+
+            result["comment"] = (
+                "Not allowed: the review refers to product "
+                "availability or stock status."
+            )
+
+        elif hard_rule_id == "2.4":
+
+            result["reason"] = (
+                "The review reports product damage or a "
+                "missing product, part, or accessory."
+            )
+
+            result["comment"] = (
+                "Not allowed: the review reports product damage "
+                "or a missing item, part, or accessory."
+            )
+
+    else:
+
+        if hard_rule_id == "3.1":
+
+            result["reason"] = (
+                "التعليق يوضح أن المنتج تم العثور عليه بسعر أرخص "
+                "في مكان آخر."
+            )
+
+            result["comment"] = (
+                "غير مسموح: التعليق يقارن سعر المنتج بسعر أرخص "
+                "في مكان آخر."
+            )
+
+        elif hard_rule_id == "3.2":
+
+            result["reason"] = (
+                "التعليق يتحدث عن توفر المنتج أو حالة المخزون."
+            )
+
+            result["comment"] = (
+                "غير مسموح: التعليق يشير إلى توفر المنتج "
+                "أو حالة المخزون."
+            )
+
+        elif hard_rule_id == "2.4":
+
+            result["reason"] = (
+                "التعليق يوضح وجود تلف في المنتج أو فقدان "
+                "منتج أو جزء أو ملحق."
+            )
+
+            result["comment"] = (
+                "غير مسموح: التعليق يوضح وجود تلف في المنتج "
+                "أو فقدان منتج أو جزء أو ملحق."
+            )
+
+    return result
+
+
+# ============================================================
+# ALLOWED RULE
+# ============================================================
+
+def enforce_allowed_closest_rule(
+    result,
+    review,
+    language
+):
+
+    if result["decision"] != "ALLOWED":
+        return result
+
+    closest_rule = get_closest_rule(review)
+
+    result["rule_id"] = closest_rule
+
+    result = enforce_rule_consistency(result)
+
+    if language == "English":
+
+        if closest_rule == "2.4":
+
+            result["reason"] = (
+                "This is normal product feedback or criticism and "
+                "does not report product damage or missing items."
+            )
+
+            result["comment"] = (
+                "Allowed: this is a normal opinion about the product "
+                "and does not contain a guideline violation."
+            )
+
+        elif closest_rule == "3.2":
+
+            result["reason"] = (
+                "The review expresses a general availability preference "
+                "rather than reporting an actual stock issue."
+            )
+
+            result["comment"] = (
+                "Allowed: this is a general product availability "
+                "preference, not a stock-status complaint."
+            )
+
+        elif closest_rule == "3.1":
+
+            result["reason"] = (
+                "The review discusses product value without explicitly "
+                "stating that the product was found cheaper elsewhere."
+            )
+
+            result["comment"] = (
+                "Allowed: the review does not contain a prohibited "
+                "competitor-price comparison."
+            )
+
+        else:
+
+            result["reason"] = (
+                "The review does not contain a guideline violation."
+            )
+
+            result["comment"] = (
+                "Allowed: no guideline violation was identified."
+            )
+
+    else:
+
+        if closest_rule == "2.4":
+
+            result["reason"] = (
+                "هذا تعليق أو انتقاد عادي للمنتج ولا يشير إلى وجود "
+                "تلف في المنتج أو فقدان أجزاء أو منتجات."
+            )
+
+            result["comment"] = (
+                "مسموح: التعليق يعبر عن رأي عادي في المنتج "
+                "ولا يحتوي على مخالفة."
+            )
+
+        elif closest_rule == "3.2":
+
+            result["reason"] = (
+                "التعليق يعبر عن رغبة عامة تتعلق بتوفر المنتج "
+                "ولا يشير إلى مشكلة فعلية في المخزون."
+            )
+
+            result["comment"] = (
+                "مسموح: التعليق يعبر عن رغبة عامة تتعلق بتوفر المنتج."
+            )
+
+        elif closest_rule == "3.1":
+
+            result["reason"] = (
+                "التعليق يتحدث عن قيمة المنتج دون الإشارة إلى "
+                "العثور عليه بسعر أرخص في مكان آخر."
+            )
+
+            result["comment"] = (
+                "مسموح: التعليق لا يحتوي على مقارنة محظورة مع سعر منافس."
+            )
+
+        else:
+
+            result["reason"] = (
+                "التعليق لا يحتوي على مخالفة لإرشادات التقييم."
+            )
+
+            result["comment"] = (
+                "مسموح: لم يتم تحديد أي مخالفة."
+            )
+
+    return result
+
+
+# ============================================================
+# FINAL SAFETY
+# ============================================================
+
+def final_safety_check(
+    result,
+    review,
+    language
+):
+
+    result = enforce_rule_consistency(result)
+
+    if result["rule_id"] not in RULES:
+
+        result["rule_id"] = get_closest_rule(review)
+
+        result = enforce_rule_consistency(result)
+
+    if language == "Arabic":
+
+        result = apply_arabic_labels(result)
+
+    return result
+
+
+# ============================================================
+# CLEAN COMMENT
+# ============================================================
+
+def clean_comment(comment):
+
+    if not comment:
+        return ""
+
+    comment = str(comment).strip()
+
+    greetings = [
+        "hello seller",
+        "hi seller",
+        "dear seller",
+        "greetings",
+        "شريكنا العزيز",
+        "تحية طيبة"
+    ]
+
+    for greeting in greetings:
+
+        comment = re.sub(
+            re.escape(greeting),
+            "",
+            comment,
+            flags=re.IGNORECASE
+        )
+
+    comment = re.sub(
+        r"\s+",
+        " ",
+        comment
+    ).strip()
+
+    return comment
+
+
+# ============================================================
+# COMPLETE EVALUATION
+# ============================================================
+
+def evaluate_review(
+    review,
+    language
+):
+
+    review = review.strip()
+
+    if not review:
+        raise ValueError(
+            "Please enter a review."
+        )
+
+    # STEP 1
+    hard_rule_result = detect_hard_rules(review)
+
+    # STEP 2
+    ai_result, used_model = evaluate_with_reliability(
+        review=review,
+        language=language,
+        hard_rule_result=hard_rule_result
+    )
+
+    validate_result(ai_result)
+
+    ai_result = enforce_rule_consistency(
+        ai_result
+    )
+
+    # STEP 3
+    try:
+
+        second_result = call_ai_adjudicator(
+            model=used_model,
+            review=review,
+            language=language,
+            first_result=ai_result
+        )
+
+        validate_result(second_result)
+
+        ai_result = enforce_rule_consistency(
+            second_result
+        )
+
+    except Exception:
+        # Keep first valid AI result
+        pass
+
+    # STEP 4
+    # Hard rules override AI
+    ai_result = apply_hard_rules(
+        result=ai_result,
+        hard_rule_result=hard_rule_result,
+        language=language
+    )
+
+    # STEP 5
+    # ALLOWED -> closest valid guideline
+    ai_result = enforce_allowed_closest_rule(
+        result=ai_result,
+        review=review,
+        language=language
+    )
+
+    # STEP 6
+    ai_result = final_safety_check(
+        result=ai_result,
+        review=review,
+        language=language
+    )
+
+    # STEP 7
+    validate_result(ai_result)
+
+    ai_result["reason"] = clean_comment(
+        ai_result["reason"]
+    )
+
+    ai_result["comment"] = clean_comment(
+        ai_result["comment"]
+    )
+
+    return ai_result, used_model
+
+
+# ============================================================
+# UI CSS
+# ============================================================
+
+st.markdown(
+    """
+    <style>
+
+    .main-title {
+        font-size: 34px;
+        font-weight: 700;
+        margin-bottom: 5px;
+    }
+
+    .sub-title {
+        color: #666;
+        font-size: 16px;
+        margin-bottom: 25px;
+    }
+
+    .allowed {
+        color: #1a7f37;
+        font-weight: 700;
+        font-size: 22px;
+    }
+
+    .not-allowed {
+        color: #d1242f;
+        font-weight: 700;
+        font-size: 22px;
+    }
+
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+
+# ============================================================
+# HEADER
+# ============================================================
+
+st.markdown(
+    '<div class="main-title">'
+    '🛡️ Product Review Moderation Tool'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+st.markdown(
+    '<div class="sub-title">'
+    'AI-powered Noon product review moderation'
+    '</div>',
+    unsafe_allow_html=True
+)
+
+
+# ============================================================
+# LANGUAGE
+# ============================================================
+
+language = st.radio(
+    "Output Language",
+    [
+        "English",
+        "Arabic"
+    ],
+    horizontal=True
+)
+
+
+# ============================================================
+# REVIEW INPUT
+# ============================================================
+
+review_text = st.text_area(
+    "Customer Review",
+    height=180,
+    placeholder=(
+        "Enter the customer review here..."
+        if language == "English"
+        else
+        "أدخل تعليق العميل هنا..."
+    )
+)
+
+
+# ============================================================
+# BUTTONS
+# ============================================================
+
+col1, col2 = st.columns(2)
+
+with col1:
+
+    evaluate_button = st.button(
+        "Evaluate Review",
+        type="primary",
+        use_container_width=True
+    )
+
+with col2:
+
+    reset_button = st.button(
+        "Reset",
+        use_container_width=True
+    )
+
+
+# ============================================================
+# RESET
+# ============================================================
+
+if reset_button:
+
+    st.session_state.pop(
+        "moderation_result",
+        None
+    )
+
+    st.session_state.pop(
+        "used_model",
+        None
+    )
+
+    st.rerun()
+
+
+# ============================================================
+# EVALUATE
+# ============================================================
+
+if evaluate_button:
+
+    if not review_text.strip():
+
+        if language == "English":
+
+            st.warning(
+                "Please enter a customer review."
+            )
+
+        else:
+
+            st.warning(
+                "يرجى إدخال تعليق العميل."
+            )
+
+    else:
+
+        try:
+
+            with st.spinner(
+                "Analyzing review..."
+                if language == "English"
+                else
+                "جاري تحليل التعليق..."
+            ):
+
+                result, used_model = evaluate_review(
+                    review=review_text,
+                    language=language
+                )
+
+                st.session_state[
+                    "moderation_result"
+                ] = result
+
+                st.session_state[
+                    "used_model"
+                ] = used_model
+
+        except Exception as e:
+
+            st.error(
+                "The application could not complete the evaluation."
+            )
+
+            st.exception(e)
+
+
+# ============================================================
+# DISPLAY RESULT
+# ============================================================
+
+if "moderation_result" in st.session_state:
+
+    result = st.session_state[
+        "moderation_result"
+    ]
+
+    used_model = st.session_state.get(
+        "used_model",
+        PRIMARY_MODEL
+    )
+
+    st.markdown("---")
+
+    # DECISION
+    if result["decision"] == "ALLOWED":
+
+        st.markdown(
+            '<div class="allowed">✓ ALLOWED</div>',
+            unsafe_allow_html=True
+        )
+
+    else:
+
+        st.markdown(
+            '<div class="not-allowed">✕ NOT ALLOWED</div>',
+            unsafe_allow_html=True
+        )
+
+    # GUIDELINE
+    st.markdown("### Guideline")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+
+        st.write(
+            f"**Section:** "
+            f"{result['section_number']} - "
+            f"{result['section_title']}"
+        )
+
+    with col2:
+
+        st.write(
+            f"**Point:** "
+            f"{result['point_number']} - "
+            f"{result['point_text']}"
+        )
+
+    # REASON
+    st.markdown("### Reason")
+
+    st.info(
+        result["reason"]
+    )
+
+    # COMMENT
+    st.markdown("### Comment")
+
+    comment = clean_comment(
+        result["comment"]
+    )
+
+    st.text_area(
+        "Generated Comment",
+        value=comment,
+        height=130,
+        key="generated_comment"
+    )
+
+    # COPY BUTTON
+    escaped_comment = (
+        comment
+        .replace("\\", "\\\\")
+        .replace("`", "\\`")
+        .replace("$", "\\$")
+    )
+
+    components.html(
+        f"""
+        <button
+            onclick="navigator.clipboard.writeText(`{escaped_comment}`)"
+            style="
+                padding:10px 18px;
+                border:none;
+                border-radius:8px;
+                cursor:pointer;
+                font-size:14px;
+            "
+        >
+            📋 Copy Comment
+        </button>
+        """,
+        height=50
+    )
+
+    # TECHNICAL DETAILS
+    with st.expander("Technical Details"):
+
+        st.write(
+            f"Model used: `{used_model}`"
+        )
+
+        st.write(
+            f"Rule ID: `{result['rule_id']}`"
+        )
+
+        st.write(
+            f"Decision: `{result['decision']}`"
+        )
+
+
+# ============================================================
+# GUIDELINES LINK
+# ============================================================
+
+st.markdown("---")
+
+st.markdown(
+    "**Noon Review Guidelines**"
+)
+
+st.markdown(
+    "[Open Noon Guidelines]"
+    "(https://help.noon.com/portal/en/kb/articles/customer-reviews)"
+)
