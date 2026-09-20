@@ -66,7 +66,7 @@ GUIDELINES = {
         "title": "Seller, Order, or Shipping Feedback",
         "points": {
             "1": "Seller performance or seller reputation",
-            "2": "Ordering or return experience",
+            "2": "Ordering or return experiences",
             "3": "Shipping, packaging, or delivery speed",
             "4": "Product damage or missing items"
         }
@@ -75,7 +75,7 @@ GUIDELINES = {
     "3": {
         "title": "Comments About Pricing or Availability",
         "points": {
-            "1": "Finding the product cheaper elsewhere / competitor pricing",
+            "1": "Finding product cheaper elsewhere / competitor pricing",
             "2": "Stock status / out-of-stock / availability"
         }
     },
@@ -83,8 +83,8 @@ GUIDELINES = {
     "4": {
         "title": "Conflicts of Interest & Anti-Manipulation",
         "points": {
-            "1": "Review written by seller, competitor, employee, friend, family member, or business partner",
-            "2": "Review posted for compensation or financial incentive"
+            "1": "Written by seller, competitor, employee, friend, family member, or business partner",
+            "2": "Posted for compensation or financial incentive"
         }
     }
 }
@@ -95,6 +95,7 @@ GUIDELINES = {
 # ============================================================
 
 RULES = {
+
     "1.1": {
         "section_number": "1",
         "section_title": "Community Guideline Violations",
@@ -134,7 +135,7 @@ RULES = {
         "section_number": "2",
         "section_title": "Seller, Order, or Shipping Feedback",
         "point_number": "2",
-        "point_text": "Ordering or return experience"
+        "point_text": "Ordering or return experiences"
     },
 
     "2.3": {
@@ -155,7 +156,7 @@ RULES = {
         "section_number": "3",
         "section_title": "Comments About Pricing or Availability",
         "point_number": "1",
-        "point_text": "Finding the product cheaper elsewhere / competitor pricing"
+        "point_text": "Finding product cheaper elsewhere / competitor pricing"
     },
 
     "3.2": {
@@ -169,14 +170,14 @@ RULES = {
         "section_number": "4",
         "section_title": "Conflicts of Interest & Anti-Manipulation",
         "point_number": "1",
-        "point_text": "Review written by seller, competitor, employee, friend, family member, or business partner"
+        "point_text": "Written by seller, competitor, employee, friend, family member, or business partner"
     },
 
     "4.2": {
         "section_number": "4",
         "section_title": "Conflicts of Interest & Anti-Manipulation",
         "point_number": "2",
-        "point_text": "Review posted for compensation or financial incentive"
+        "point_text": "Posted for compensation or financial incentive"
     }
 }
 
@@ -205,7 +206,7 @@ ARABIC_POINTS = {
     "2.1": "أداء البائع أو سمعة البائع",
     "2.2": "تجربة الطلب أو الإرجاع",
     "2.3": "الشحن أو التغليف أو سرعة التوصيل",
-    "2.4": "تلف المنتج أو فقدان أجزاء / منتجات",
+    "2.4": "تلف المنتج أو فقدان أجزاء أو منتجات",
 
     "3.1": "العثور على المنتج بسعر أرخص في مكان آخر / أسعار المنافسين",
     "3.2": "حالة المخزون أو عدم توفر المنتج",
@@ -222,19 +223,19 @@ ARABIC_POINTS = {
 def get_language_instruction(language):
 
     if language == "Arabic":
+
         return """
 OUTPUT LANGUAGE:
-- Return reason and comment in Arabic.
-- Keep section and point names according to the provided Arabic mapping.
+- Write the reason and comment in Arabic.
 - Do not add greetings.
-- Do not add unnecessary explanation.
+- Do not add unnecessary explanations.
 """
 
     return """
 OUTPUT LANGUAGE:
-- Return reason and comment in English.
+- Write the reason and comment in English.
 - Do not add greetings.
-- Do not add unnecessary explanation.
+- Do not add unnecessary explanations.
 """
 
 
@@ -250,7 +251,11 @@ def normalize_text(text):
     text = str(text).lower().strip()
 
     # Remove Arabic diacritics and Tatweel
-    text = re.sub(r"[\u064B-\u065F\u0670\u0640]", "", text)
+    text = re.sub(
+        r"[\u064B-\u065F\u0670\u0640]",
+        "",
+        text
+    )
 
     # Arabic normalization
     replacements = {
@@ -265,8 +270,12 @@ def normalize_text(text):
     for old, new in replacements.items():
         text = text.replace(old, new)
 
-    # Normalize whitespace
-    text = re.sub(r"\s+", " ", text)
+    # Normalize spaces
+    text = re.sub(
+        r"\s+",
+        " ",
+        text
+    )
 
     return text
 
@@ -284,310 +293,7 @@ def get_closest_rule(review):
     # --------------------------------------------------------
 
     price_phrases = [
-        "found it cheaper elsewhere",
-        "found it cheaper",
-        "cheaper elsewhere",
-        "cheaper in another store",
-        "cheaper at another store",
-        "lower price elsewhere",
-        "lower price in another store",
-        "more expensive than",
-        "more expensive here",
-        "same product cheaper",
-        "same item cheaper",
 
-        "وجدته بسعر ارخص",
-        "وجدته ارخص",
-        "لقيته بسعر ارخص",
-        "لقيته ارخص",
-        "ارخص في مكان اخر",
-        "ارخص في مكان ثاني",
-        "ارخص برا",
-        "سعره ارخص",
-        "نفس المنتج ارخص",
-        "نفس المنتج بسعر ارخص"
-    ]
-
-    if any(normalize_text(x) in text for x in price_phrases):
-        return "3.1"
-
-
-    # --------------------------------------------------------
-    # AVAILABILITY
-    # --------------------------------------------------------
-
-    availability_phrases = [
-        "out of stock",
-        "out-of-stock",
-        "unavailable",
-        "not available",
-        "no stock",
-        "no longer available",
-        "when will it be available",
-
-        "غير متوفر",
-        "غير متاح",
-        "خلص من المخزون",
-        "نفد المخزون",
-        "مفيش مخزون",
-        "لا يوجد مخزون",
-        "متى سيتوفر",
-        "متى يتوفر"
-    ]
-
-    if any(normalize_text(x) in text for x in availability_phrases):
-        return "3.2"
-
-
-    # --------------------------------------------------------
-    # SELLER
-    # --------------------------------------------------------
-
-    seller_phrases = [
-        "seller",
-        "seller service",
-        "seller support",
-        "seller attitude",
-        "seller behavior",
-
-        "البائع",
-        "البايع",
-        "تعامل البائع",
-        "خدمة البائع",
-        "تصرف البائع"
-    ]
-
-    if any(normalize_text(x) in text for x in seller_phrases):
-        return "2.1"
-
-
-    # --------------------------------------------------------
-    # ORDER / RETURN
-    # --------------------------------------------------------
-
-    order_phrases = [
-        "order",
-        "ordered",
-        "cancelled my order",
-        "returned",
-        "return",
-        "refund",
-
-        "الطلب",
-        "طلبت",
-        "الغاء الطلب",
-        "إلغاء الطلب",
-        "ارجاع",
-        "إرجاع",
-        "استرجاع",
-        "استرداد"
-    ]
-
-    if any(normalize_text(x) in text for x in order_phrases):
-        return "2.2"
-
-
-    # --------------------------------------------------------
-    # SHIPPING
-    # --------------------------------------------------------
-
-    shipping_phrases = [
-        "shipping",
-        "delivery",
-        "delivered late",
-        "late delivery",
-        "delivery took",
-        "packaging",
-        "package",
-        "courier",
-        "delivery driver",
-
-        "الشحن",
-        "التوصيل",
-        "وصل متاخر",
-        "التغليف",
-        "الكرتونه",
-        "الكرتونة",
-        "المندوب"
-    ]
-
-    if any(normalize_text(x) in text for x in shipping_phrases):
-        return "2.3"
-
-
-    # --------------------------------------------------------
-    # DAMAGE / MISSING
-    # --------------------------------------------------------
-
-    damage_missing_phrases = [
-        "broken",
-        "damaged",
-        "cracked",
-        "crushed",
-        "destroyed",
-        "physically damaged",
-        "missing item",
-        "missing items",
-        "missing part",
-        "missing parts",
-        "missing accessory",
-        "missing accessories",
-
-        "مكسور",
-        "مكسوره",
-        "مكسورة",
-        "تالف",
-        "تالفة",
-        "تالفه",
-        "متضرر",
-        "متضررة",
-        "جزء ناقص",
-        "اجزاء ناقصه",
-        "جزء مفقود",
-        "اكسسوار ناقص",
-        "اكسسوارات ناقصه"
-    ]
-
-    if any(normalize_text(x) in text for x in damage_missing_phrases):
-        return "2.4"
-
-
-    # --------------------------------------------------------
-    # PROMOTIONAL
-    # --------------------------------------------------------
-
-    promotional_phrases = [
-        "buy from me",
-        "contact me",
-        "contact us",
-        "visit my store",
-        "visit our store",
-        "whatsapp me",
-        "whatsapp us",
-        "call me",
-        "call us",
-        "discount code",
-        "promo code",
-
-        "اشتروا مني",
-        "تواصل معي",
-        "تواصل معنا",
-        "زوروا متجري",
-        "واتساب",
-        "كود خصم",
-        "خصم"
-    ]
-
-    if any(normalize_text(x) in text for x in promotional_phrases):
-        return "1.1"
-
-
-    # --------------------------------------------------------
-    # PERSONAL INFORMATION
-    # --------------------------------------------------------
-
-    personal_info_phrases = [
-        "phone number",
-        "mobile number",
-        "email address",
-        "credit card",
-        "card number",
-        "bank account",
-        "password",
-        "otp",
-
-        "رقم الهاتف",
-        "رقم الموبايل",
-        "البريد الالكتروني",
-        "الايميل",
-        "رقم البطاقة",
-        "رقم الحساب",
-        "كلمة المرور",
-        "رمز التحقق"
-    ]
-
-    if any(normalize_text(x) in text for x in personal_info_phrases):
-        return "1.4"
-
-
-    # --------------------------------------------------------
-    # CONFLICT OF INTEREST
-    # --------------------------------------------------------
-
-    conflict_phrases = [
-        "i am the seller",
-        "i work for the seller",
-        "my company",
-        "my store",
-        "competitor",
-        "employee",
-        "family member",
-        "friend of the seller",
-        "business partner",
-
-        "انا البائع",
-        "انا من الشركة",
-        "انا موظف",
-        "منافس",
-        "صديقي",
-        "قريبي",
-        "شريكي"
-    ]
-
-    if any(normalize_text(x) in text for x in conflict_phrases):
-        return "4.1"
-
-
-    # --------------------------------------------------------
-    # COMPENSATION
-    # --------------------------------------------------------
-
-    compensation_phrases = [
-        "paid to review",
-        "paid for review",
-        "received money",
-        "received compensation",
-        "free product for review",
-        "in exchange for a review",
-        "gifted for review",
-
-        "دفعت لي",
-        "تم الدفع لي",
-        "مقابل التقييم",
-        "مقابل المراجعة",
-        "حصلت على منتج مجاني"
-    ]
-
-    if any(normalize_text(x) in text for x in compensation_phrases):
-        return "4.2"
-
-
-    # --------------------------------------------------------
-    # GENERIC PRODUCT FEEDBACK
-    # --------------------------------------------------------
-
-    return "2.4"
-
-
-# ============================================================
-# HARD RULE DETECTOR
-# ============================================================
-
-def detect_hard_rules(review):
-
-    text = normalize_text(review)
-
-    result = {
-        "rule_id": None,
-        "reason": None
-    }
-
-
-    # --------------------------------------------------------
-    # PRICE
-    # --------------------------------------------------------
-
-    price_patterns = [
         "found it cheaper elsewhere",
         "found it cheaper",
         "cheaper elsewhere",
@@ -613,13 +319,362 @@ def detect_hard_rules(review):
         "نفسه ارخص"
     ]
 
-    if any(normalize_text(x) in text for x in price_patterns):
+    if any(
+        normalize_text(x) in text
+        for x in price_phrases
+    ):
+        return "3.1"
+
+
+    # --------------------------------------------------------
+    # AVAILABILITY
+    # --------------------------------------------------------
+
+    availability_phrases = [
+
+        "out of stock",
+        "out-of-stock",
+        "unavailable",
+        "not available",
+        "no stock",
+        "no longer available",
+        "when will it be available",
+        "when will it be back in stock",
+
+        "غير متوفر",
+        "غير متاح",
+        "خلص من المخزون",
+        "نفد المخزون",
+        "مفيش مخزون",
+        "لا يوجد مخزون",
+        "متى سيتوفر",
+        "متى يتوفر",
+        "متى يرجع للمخزون"
+    ]
+
+    if any(
+        normalize_text(x) in text
+        for x in availability_phrases
+    ):
+        return "3.2"
+
+
+    # --------------------------------------------------------
+    # SELLER
+    # --------------------------------------------------------
+
+    seller_phrases = [
+
+        "seller",
+        "seller service",
+        "seller support",
+        "seller attitude",
+        "seller behavior",
+
+        "البائع",
+        "البايع",
+        "تعامل البائع",
+        "خدمة البائع",
+        "تصرف البائع"
+    ]
+
+    if any(
+        normalize_text(x) in text
+        for x in seller_phrases
+    ):
+        return "2.1"
+
+
+    # --------------------------------------------------------
+    # ORDER / RETURN
+    # --------------------------------------------------------
+
+    order_phrases = [
+
+        "order",
+        "ordered",
+        "cancelled my order",
+        "cancel my order",
+        "returned",
+        "return",
+        "refund",
+
+        "الطلب",
+        "طلبت",
+        "الغاء الطلب",
+        "إلغاء الطلب",
+        "ارجاع",
+        "إرجاع",
+        "استرجاع",
+        "استرداد"
+    ]
+
+    if any(
+        normalize_text(x) in text
+        for x in order_phrases
+    ):
+        return "2.2"
+
+
+    # --------------------------------------------------------
+    # SHIPPING
+    # --------------------------------------------------------
+
+    shipping_phrases = [
+
+        "shipping",
+        "delivery",
+        "delivered late",
+        "late delivery",
+        "delivery took",
+        "packaging",
+        "package",
+        "courier",
+        "delivery driver",
+
+        "الشحن",
+        "التوصيل",
+        "وصل متاخر",
+        "وصل متأخر",
+        "التغليف",
+        "الكرتونه",
+        "الكرتونة",
+        "المندوب"
+    ]
+
+    if any(
+        normalize_text(x) in text
+        for x in shipping_phrases
+    ):
+        return "2.3"
+
+
+    # --------------------------------------------------------
+    # DAMAGE / MISSING
+    # --------------------------------------------------------
+
+    damage_missing_phrases = [
+
+        "broken",
+        "damaged",
+        "cracked",
+        "crushed",
+        "destroyed",
+        "physically damaged",
+
+        "missing item",
+        "missing items",
+        "missing part",
+        "missing parts",
+        "missing accessory",
+        "missing accessories",
+
+        "مكسور",
+        "مكسوره",
+        "مكسورة",
+        "تالف",
+        "تالفة",
+        "تالفه",
+        "متضرر",
+        "متضررة",
+        "جزء ناقص",
+        "اجزاء ناقصه",
+        "جزء مفقود",
+        "اكسسوار ناقص",
+        "اكسسوارات ناقصه"
+    ]
+
+    if any(
+        normalize_text(x) in text
+        for x in damage_missing_phrases
+    ):
+        return "2.4"
+
+
+    # --------------------------------------------------------
+    # PROMOTIONAL
+    # --------------------------------------------------------
+
+    promotional_phrases = [
+
+        "buy from me",
+        "contact me",
+        "contact us",
+        "visit my store",
+        "visit our store",
+        "whatsapp me",
+        "whatsapp us",
+        "call me",
+        "call us",
+        "discount code",
+        "promo code",
+
+        "اشتروا مني",
+        "تواصل معي",
+        "تواصل معنا",
+        "زوروا متجري",
+        "واتساب",
+        "كود خصم"
+    ]
+
+    if any(
+        normalize_text(x) in text
+        for x in promotional_phrases
+    ):
+        return "1.1"
+
+
+    # --------------------------------------------------------
+    # PERSONAL INFORMATION
+    # --------------------------------------------------------
+
+    personal_info_phrases = [
+
+        "phone number",
+        "mobile number",
+        "email address",
+        "credit card",
+        "card number",
+        "bank account",
+        "password",
+        "otp",
+
+        "رقم الهاتف",
+        "رقم الموبايل",
+        "البريد الالكتروني",
+        "الايميل",
+        "رقم البطاقة",
+        "رقم الحساب",
+        "كلمة المرور",
+        "رمز التحقق"
+    ]
+
+    if any(
+        normalize_text(x) in text
+        for x in personal_info_phrases
+    ):
+        return "1.4"
+
+
+    # --------------------------------------------------------
+    # CONFLICT OF INTEREST
+    # --------------------------------------------------------
+
+    conflict_phrases = [
+
+        "i am the seller",
+        "i work for the seller",
+        "my company",
+        "my store",
+        "competitor",
+        "employee",
+        "family member",
+        "friend of the seller",
+        "business partner",
+
+        "انا البائع",
+        "انا من الشركة",
+        "انا موظف",
+        "منافس",
+        "صديقي",
+        "قريبي",
+        "شريكي"
+    ]
+
+    if any(
+        normalize_text(x) in text
+        for x in conflict_phrases
+    ):
+        return "4.1"
+
+
+    # --------------------------------------------------------
+    # COMPENSATION
+    # --------------------------------------------------------
+
+    compensation_phrases = [
+
+        "paid to review",
+        "paid for review",
+        "received money",
+        "received compensation",
+        "free product for review",
+        "in exchange for a review",
+        "gifted for review",
+
+        "دفعت لي",
+        "تم الدفع لي",
+        "مقابل التقييم",
+        "مقابل المراجعة",
+        "حصلت على منتج مجاني"
+    ]
+
+    if any(
+        normalize_text(x) in text
+        for x in compensation_phrases
+    ):
+        return "4.2"
+
+
+    # Generic product feedback
+    return "2.4"
+
+
+# ============================================================
+# HARD RULE DETECTOR
+# ============================================================
+
+def detect_hard_rules(review):
+
+    text = normalize_text(review)
+
+    result = {
+        "rule_id": None,
+        "reason": None
+    }
+
+
+    # --------------------------------------------------------
+    # PRICE
+    # --------------------------------------------------------
+
+    price_patterns = [
+
+        "found it cheaper elsewhere",
+        "found it cheaper",
+        "cheaper elsewhere",
+        "cheaper in another store",
+        "cheaper at another store",
+        "lower price elsewhere",
+        "lower price in another store",
+        "more expensive than",
+        "more expensive here",
+        "same product cheaper",
+        "same item cheaper",
+
+        "وجدته بسعر ارخص",
+        "وجدته ارخص",
+        "لقيته بسعر ارخص",
+        "لقيته ارخص",
+        "ارخص في مكان اخر",
+        "ارخص في مكان ثاني",
+        "ارخص برا",
+        "سعره ارخص",
+        "نفس المنتج ارخص",
+        "نفس المنتج بسعر ارخص",
+        "نفسه ارخص"
+    ]
+
+    if any(
+        normalize_text(x) in text
+        for x in price_patterns
+    ):
 
         result["rule_id"] = "3.1"
 
         result["reason"] = (
-            "The review explicitly compares the product price "
-            "with a cheaper price elsewhere."
+            "The review explicitly compares the product "
+            "price with a cheaper price elsewhere."
         )
 
         return result
@@ -630,6 +685,7 @@ def detect_hard_rules(review):
     # --------------------------------------------------------
 
     availability_patterns = [
+
         "out of stock",
         "out-of-stock",
         "unavailable",
@@ -650,13 +706,16 @@ def detect_hard_rules(review):
         "متى يرجع للمخزون"
     ]
 
-    if any(normalize_text(x) in text for x in availability_patterns):
+    if any(
+        normalize_text(x) in text
+        for x in availability_patterns
+    ):
 
         result["rule_id"] = "3.2"
 
         result["reason"] = (
-            "The review explicitly discusses product availability "
-            "or stock status."
+            "The review explicitly discusses product "
+            "availability or stock status."
         )
 
         return result
@@ -667,6 +726,7 @@ def detect_hard_rules(review):
     # --------------------------------------------------------
 
     damage_patterns = [
+
         "broken",
         "damaged",
         "cracked",
@@ -688,7 +748,10 @@ def detect_hard_rules(review):
         "وصل تالف"
     ]
 
-    if any(normalize_text(x) in text for x in damage_patterns):
+    if any(
+        normalize_text(x) in text
+        for x in damage_patterns
+    ):
 
         result["rule_id"] = "2.4"
 
@@ -705,6 +768,7 @@ def detect_hard_rules(review):
     # --------------------------------------------------------
 
     missing_patterns = [
+
         "missing item",
         "missing items",
         "missing part",
@@ -726,7 +790,10 @@ def detect_hard_rules(review):
         "شي ناقص"
     ]
 
-    if any(normalize_text(x) in text for x in missing_patterns):
+    if any(
+        normalize_text(x) in text
+        for x in missing_patterns
+    ):
 
         result["rule_id"] = "2.4"
 
@@ -745,14 +812,18 @@ def detect_hard_rules(review):
 # AI PROMPT
 # ============================================================
 
-def build_prompt(review, language, hard_rule_result):
+def build_prompt(
+    review,
+    language,
+    hard_rule_result
+):
 
     closest_rule = get_closest_rule(review)
+
 
     if hard_rule_result.get("rule_id"):
 
         hard_rule_text = (
-            f"HIGH-CONFIDENCE RULE: "
             f"{hard_rule_result['rule_id']} - "
             f"{RULES[hard_rule_result['rule_id']]['point_text']}"
         )
@@ -760,6 +831,7 @@ def build_prompt(review, language, hard_rule_result):
     else:
 
         hard_rule_text = "NONE"
+
 
     closest_rule_text = (
         f"{closest_rule} - "
@@ -776,7 +848,8 @@ Evaluate ONE customer review according to the provided guidelines.
 MOST IMPORTANT PRINCIPLE
 ============================================================
 
-A customer is allowed to express negative opinions about the PRODUCT.
+A customer is allowed to express negative opinions about the
+PRODUCT.
 
 These should normally be ALLOWED:
 
@@ -789,7 +862,6 @@ These should normally be ALLOWED:
 "The quality is poor."
 "The color is ugly."
 "I regret buying it."
-"The product is expensive."
 
 Arabic examples:
 
@@ -830,12 +902,13 @@ However:
 "The battery is terrible."
 "I hate this product."
 
-are normally ALLOWED if they are simply opinions about the product
-and do not contain abusive/vulgar language.
+are normally ALLOWED if they are simply opinions about
+the product and do not contain abusive/vulgar language.
 
 Use the context of the ENTIRE review.
 
-Do not block a review because it contains one negative adjective.
+Do not block a review because it contains one normal
+negative adjective.
 
 ============================================================
 RULE 1
@@ -924,8 +997,8 @@ IMPORTANT
 - Stock-status complaints are NOT_ALLOWED.
 - General wishes about product availability can be ALLOWED.
 
-For ALLOWED reviews, you MUST still select one of the existing
-rule IDs as the closest relevant guideline.
+For ALLOWED reviews, you MUST still select one of the
+existing rule IDs as the closest relevant guideline.
 
 Never use:
 NONE
@@ -933,7 +1006,7 @@ N/A
 No
 Unknown
 
-Closest rule for this review:
+Closest rule:
 {closest_rule_text}
 
 High-confidence detector:
@@ -956,7 +1029,9 @@ Return ONLY valid JSON.
 # ============================================================
 
 REVIEW_SCHEMA = {
+
     "type": "object",
+
     "additionalProperties": False,
 
     "properties": {
@@ -1013,7 +1088,7 @@ REVIEW_SCHEMA = {
 
 
 # ============================================================
-# CALL GROQ
+# CALL MODEL
 # ============================================================
 
 def call_model(
@@ -1039,10 +1114,11 @@ def call_model(
             {
                 "role": "system",
                 "content": (
-                    "You are a strict and accurate product review "
-                    "moderation engine."
+                    "You are a strict and accurate product "
+                    "review moderation engine."
                 )
             },
+
             {
                 "role": "user",
                 "content": prompt
@@ -1093,6 +1169,7 @@ def evaluate_with_reliability(
         FALLBACK_MODEL
     ]
 
+
     last_error = None
 
 
@@ -1126,10 +1203,12 @@ def evaluate_with_reliability(
                     or "model not found" in error_text
                     or "does not exist" in error_text
                 ):
+
                     break
 
 
                 if attempt == 0:
+
                     time.sleep(1)
 
 
@@ -1152,8 +1231,8 @@ def call_ai_adjudicator(
     prompt = f"""
 You are the FINAL QUALITY CONTROL reviewer.
 
-Check the first AI classification against the Noon product review
-moderation rules.
+Check the first AI classification against the Noon product
+review moderation rules.
 
 Pay special attention to:
 
@@ -1244,9 +1323,11 @@ Never use NONE or N/A.
             {
                 "role": "system",
                 "content": (
-                    "You are the final quality-control reviewer."
+                    "You are the final quality-control "
+                    "reviewer."
                 )
             },
+
             {
                 "role": "user",
                 "content": prompt
@@ -1289,6 +1370,7 @@ Never use NONE or N/A.
 def validate_result(result):
 
     if not isinstance(result, dict):
+
         raise ValueError(
             "Invalid AI result."
         )
@@ -1309,6 +1391,7 @@ def validate_result(result):
     for field in required_fields:
 
         if field not in result:
+
             raise ValueError(
                 f"Missing field: {field}"
             )
@@ -1318,24 +1401,32 @@ def validate_result(result):
         "ALLOWED",
         "NOT_ALLOWED"
     ]:
+
         raise ValueError(
             "Invalid decision."
         )
 
 
     if result["rule_id"] not in RULES:
+
         raise ValueError(
             f"Invalid rule ID: {result['rule_id']}"
         )
 
 
-    if not str(result["reason"]).strip():
+    if not str(
+        result["reason"]
+    ).strip():
+
         raise ValueError(
             "Empty reason."
         )
 
 
-    if not str(result["comment"]).strip():
+    if not str(
+        result["comment"]
+    ).strip():
+
         raise ValueError(
             "Empty comment."
         )
@@ -1354,10 +1445,21 @@ def enforce_rule_consistency(result):
 
     rule = RULES[rule_id]
 
-    result["section_number"] = rule["section_number"]
-    result["section_title"] = rule["section_title"]
-    result["point_number"] = rule["point_number"]
-    result["point_text"] = rule["point_text"]
+    result["section_number"] = (
+        rule["section_number"]
+    )
+
+    result["section_title"] = (
+        rule["section_title"]
+    )
+
+    result["point_number"] = (
+        rule["point_number"]
+    )
+
+    result["point_text"] = (
+        rule["point_text"]
+    )
 
     return result
 
@@ -1370,11 +1472,15 @@ def apply_arabic_labels(result):
 
     rule_id = result["rule_id"]
 
-    result["section_title"] = ARABIC_SECTIONS[
-        RULES[rule_id]["section_number"]
-    ]
+    result["section_title"] = (
+        ARABIC_SECTIONS[
+            RULES[rule_id]["section_number"]
+        ]
+    )
 
-    result["point_text"] = ARABIC_POINTS[rule_id]
+    result["point_text"] = (
+        ARABIC_POINTS[rule_id]
+    )
 
     return result
 
@@ -1389,17 +1495,24 @@ def apply_hard_rules(
     language
 ):
 
-    hard_rule_id = hard_rule_result.get("rule_id")
+    hard_rule_id = hard_rule_result.get(
+        "rule_id"
+    )
 
 
     if not hard_rule_id:
+
         return result
 
 
     result["decision"] = "NOT_ALLOWED"
+
     result["rule_id"] = hard_rule_id
 
-    result = enforce_rule_consistency(result)
+
+    result = enforce_rule_consistency(
+        result
+    )
 
 
     if language == "English":
@@ -1407,8 +1520,8 @@ def apply_hard_rules(
         if hard_rule_id == "3.1":
 
             result["reason"] = (
-                "The review explicitly states that the product "
-                "was found cheaper elsewhere."
+                "The review explicitly states that "
+                "the product was found cheaper elsewhere."
             )
 
             result["comment"] = (
@@ -1433,8 +1546,8 @@ def apply_hard_rules(
         elif hard_rule_id == "2.4":
 
             result["reason"] = (
-                "The review reports product damage or a "
-                "missing product, part, or accessory."
+                "The review reports product damage or "
+                "a missing product, part, or accessory."
             )
 
             result["comment"] = (
@@ -1448,20 +1561,21 @@ def apply_hard_rules(
         if hard_rule_id == "3.1":
 
             result["reason"] = (
-                "التعليق يوضح أن المنتج تم العثور عليه بسعر "
-                "أرخص في مكان آخر."
+                "التعليق يوضح أن المنتج تم العثور عليه "
+                "بسعر أرخص في مكان آخر."
             )
 
             result["comment"] = (
-                "غير مسموح: التعليق يقارن سعر المنتج بسعر "
-                "أرخص في مكان آخر."
+                "غير مسموح: التعليق يقارن سعر المنتج "
+                "بسعر أرخص في مكان آخر."
             )
 
 
         elif hard_rule_id == "3.2":
 
             result["reason"] = (
-                "التعليق يتحدث عن توفر المنتج أو حالة المخزون."
+                "التعليق يتحدث عن توفر المنتج "
+                "أو حالة المخزون."
             )
 
             result["comment"] = (
@@ -1473,8 +1587,8 @@ def apply_hard_rules(
         elif hard_rule_id == "2.4":
 
             result["reason"] = (
-                "التعليق يوضح وجود تلف في المنتج أو فقدان "
-                "منتج أو جزء أو ملحق."
+                "التعليق يوضح وجود تلف في المنتج "
+                "أو فقدان منتج أو جزء أو ملحق."
             )
 
             result["comment"] = (
@@ -1487,7 +1601,7 @@ def apply_hard_rules(
 
 
 # ============================================================
-# ALLOWED RULE
+# ALLOWED CLOSEST RULE
 # ============================================================
 
 def enforce_allowed_closest_rule(
@@ -1497,14 +1611,21 @@ def enforce_allowed_closest_rule(
 ):
 
     if result["decision"] != "ALLOWED":
+
         return result
 
 
-    closest_rule = get_closest_rule(review)
+    closest_rule = get_closest_rule(
+        review
+    )
+
 
     result["rule_id"] = closest_rule
 
-    result = enforce_rule_consistency(result)
+
+    result = enforce_rule_consistency(
+        result
+    )
 
 
     if language == "English":
@@ -1512,8 +1633,8 @@ def enforce_allowed_closest_rule(
         if closest_rule == "2.4":
 
             result["reason"] = (
-                "This is normal product feedback or criticism and "
-                "does not report product damage or missing items."
+                "This is normal product feedback or criticism "
+                "and does not report product damage or missing items."
             )
 
             result["comment"] = (
@@ -1525,8 +1646,8 @@ def enforce_allowed_closest_rule(
         elif closest_rule == "3.2":
 
             result["reason"] = (
-                "The review expresses a general availability preference "
-                "rather than reporting an actual stock issue."
+                "The review expresses a general availability "
+                "preference rather than reporting an actual stock issue."
             )
 
             result["comment"] = (
@@ -1564,8 +1685,8 @@ def enforce_allowed_closest_rule(
         if closest_rule == "2.4":
 
             result["reason"] = (
-                "هذا تعليق أو انتقاد عادي للمنتج ولا يشير إلى وجود "
-                "تلف في المنتج أو فقدان أجزاء أو منتجات."
+                "هذا تعليق أو انتقاد عادي للمنتج ولا يشير إلى "
+                "وجود تلف في المنتج أو فقدان أجزاء أو منتجات."
             )
 
             result["comment"] = (
@@ -1623,19 +1744,27 @@ def final_safety_check(
     language
 ):
 
-    result = enforce_rule_consistency(result)
+    result = enforce_rule_consistency(
+        result
+    )
 
 
     if result["rule_id"] not in RULES:
 
-        result["rule_id"] = get_closest_rule(review)
+        result["rule_id"] = (
+            get_closest_rule(review)
+        )
 
-        result = enforce_rule_consistency(result)
+        result = enforce_rule_consistency(
+            result
+        )
 
 
     if language == "Arabic":
 
-        result = apply_arabic_labels(result)
+        result = apply_arabic_labels(
+            result
+        )
 
 
     return result
@@ -1648,10 +1777,13 @@ def final_safety_check(
 def clean_comment(comment):
 
     if not comment:
+
         return ""
 
 
-    comment = str(comment).strip()
+    comment = str(
+        comment
+    ).strip()
 
 
     greetings = [
@@ -1685,7 +1817,7 @@ def clean_comment(comment):
 
 
 # ============================================================
-# COMPLETE EVALUATION
+# EVALUATE REVIEW
 # ============================================================
 
 def evaluate_review(
@@ -1704,7 +1836,8 @@ def evaluate_review(
 
 
     # --------------------------------------------------------
-    # STEP 1 - HARD RULES
+    # STEP 1
+    # Hard rules
     # --------------------------------------------------------
 
     hard_rule_result = detect_hard_rules(
@@ -1713,13 +1846,16 @@ def evaluate_review(
 
 
     # --------------------------------------------------------
-    # STEP 2 - FIRST AI
+    # STEP 2
+    # First AI
     # --------------------------------------------------------
 
-    ai_result, used_model = evaluate_with_reliability(
-        review=review,
-        language=language,
-        hard_rule_result=hard_rule_result
+    ai_result, used_model = (
+        evaluate_with_reliability(
+            review=review,
+            language=language,
+            hard_rule_result=hard_rule_result
+        )
     )
 
 
@@ -1734,7 +1870,8 @@ def evaluate_review(
 
 
     # --------------------------------------------------------
-    # STEP 3 - SECOND AI QUALITY CHECK
+    # STEP 3
+    # Second AI quality check
     # --------------------------------------------------------
 
     try:
@@ -1759,12 +1896,13 @@ def evaluate_review(
 
     except Exception:
 
-        # Keep the first valid AI result
+        # Keep first valid result
         pass
 
 
     # --------------------------------------------------------
-    # STEP 4 - HARD RULE OVERRIDE
+    # STEP 4
+    # Hard rule override
     # --------------------------------------------------------
 
     ai_result = apply_hard_rules(
@@ -1775,7 +1913,8 @@ def evaluate_review(
 
 
     # --------------------------------------------------------
-    # STEP 5 - CLOSEST RULE FOR ALLOWED REVIEWS
+    # STEP 5
+    # Closest rule for allowed reviews
     # --------------------------------------------------------
 
     ai_result = enforce_allowed_closest_rule(
@@ -1786,7 +1925,8 @@ def evaluate_review(
 
 
     # --------------------------------------------------------
-    # STEP 6 - FINAL SAFETY
+    # STEP 6
+    # Final safety
     # --------------------------------------------------------
 
     ai_result = final_safety_check(
@@ -1797,7 +1937,8 @@ def evaluate_review(
 
 
     # --------------------------------------------------------
-    # STEP 7 - FINAL VALIDATION
+    # STEP 7
+    # Final validation
     # --------------------------------------------------------
 
     validate_result(
@@ -1819,68 +1960,11 @@ def evaluate_review(
 
 
 # ============================================================
-# UI CSS
+# ORIGINAL UI STYLE
 # ============================================================
 
-st.markdown(
-    """
-    <style>
-
-    /* ======================================================
-       MAIN TITLE
-       ====================================================== */
-
-    .main-title {
-        font-size: 34px;
-        font-weight: 700;
-        color: #172033;
-        margin-top: 5px;
-        margin-bottom: 32px;
-    }
-
-
-    /* ======================================================
-       RESULT COLORS
-       ====================================================== */
-
-    .allowed {
-        color: #1a7f37;
-        font-weight: 700;
-        font-size: 22px;
-    }
-
-    .not-allowed {
-        color: #d1242f;
-        font-weight: 700;
-        font-size: 22px;
-    }
-
-
-    /* ======================================================
-       TEXT AREA
-       ====================================================== */
-
-    textarea {
-        font-size: 16px !important;
-    }
-
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-
-# ============================================================
-# HEADER
-# ============================================================
-
-st.markdown(
-    """
-    <div class="main-title">
-        🛡️ Product Review Moderation Tool
-    </div>
-    """,
-    unsafe_allow_html=True
+st.title(
+    "Product Review Moderation Tool"
 )
 
 
@@ -1889,7 +1973,7 @@ st.markdown(
 # ============================================================
 
 language = st.radio(
-    "Output Language",
+    "Select Output Language / اختر لغة الرد:",
     [
         "English",
         "Arabic"
@@ -1903,8 +1987,8 @@ language = st.radio(
 # ============================================================
 
 review_text = st.text_area(
-    "Customer Review",
-    height=180,
+    "Enter Customer Review:",
+    height=150,
     placeholder=(
         "Enter the customer review here..."
         if language == "English"
@@ -1916,9 +2000,12 @@ review_text = st.text_area(
 
 # ============================================================
 # BUTTONS
+# ORIGINAL LAYOUT
 # ============================================================
 
-col1, col2 = st.columns(2)
+col1, col2 = st.columns(
+    [2, 5]
+)
 
 
 with col1:
@@ -1965,17 +2052,12 @@ if evaluate_button:
 
     if not review_text.strip():
 
-        if language == "English":
-
-            st.warning(
-                "Please enter a customer review."
-            )
-
-        else:
-
-            st.warning(
-                "يرجى إدخال تعليق العميل."
-            )
+        st.warning(
+            "Please enter a customer review."
+            if language == "English"
+            else
+            "يرجى إدخال تعليق العميل."
+        )
 
     else:
 
@@ -2014,7 +2096,8 @@ if evaluate_button:
 
 
 # ============================================================
-# DISPLAY RESULT
+# RESULT
+# ORIGINAL STYLE
 # ============================================================
 
 if "moderation_result" in st.session_state:
@@ -2024,97 +2107,86 @@ if "moderation_result" in st.session_state:
     ]
 
 
-    used_model = st.session_state.get(
-        "used_model",
-        PRIMARY_MODEL
+    st.markdown(
+        "### Result:"
     )
 
 
-    st.markdown("---")
-
-
-    # ========================================================
+    # --------------------------------------------------------
     # DECISION
-    # ========================================================
+    # --------------------------------------------------------
 
     if result["decision"] == "ALLOWED":
 
-        st.markdown(
-            '<div class="allowed">✓ ALLOWED</div>',
-            unsafe_allow_html=True
+        st.success(
+            "✓ ALLOWED"
         )
 
     else:
 
-        st.markdown(
-            '<div class="not-allowed">✕ NOT ALLOWED</div>',
-            unsafe_allow_html=True
+        st.error(
+            "✕ NOT ALLOWED"
         )
 
 
-    # ========================================================
-    # GUIDELINE
-    # ========================================================
+    # --------------------------------------------------------
+    # SECTION
+    # --------------------------------------------------------
 
-    st.markdown("### Guideline")
-
-
-    col1, col2 = st.columns(2)
-
-
-    with col1:
-
-        st.write(
-            f"**Section:** "
-            f"{result['section_number']} - "
-            f"{result['section_title']}"
-        )
-
-
-    with col2:
-
-        st.write(
-            f"**Point:** "
-            f"{result['point_number']} - "
-            f"{result['point_text']}"
-        )
-
-
-    # ========================================================
-    # REASON
-    # ========================================================
-
-    st.markdown("### Reason")
-
-
-    st.info(
-        result["reason"]
+    st.markdown(
+        f"**Main Guideline Section:** "
+        f"{result['section_number']} - "
+        f"{result['section_title']}"
     )
 
 
-    # ========================================================
+    # --------------------------------------------------------
+    # POINT
+    # --------------------------------------------------------
+
+    st.markdown(
+        f"**Specific Sub-rule:** "
+        f"{result['point_number']} - "
+        f"{result['point_text']}"
+    )
+
+
+    # --------------------------------------------------------
+    # REASON
+    # --------------------------------------------------------
+
+    st.markdown(
+        f"**Reason:** "
+        f"{result['reason']}"
+    )
+
+
+    # --------------------------------------------------------
     # COMMENT
-    # ========================================================
-
-    st.markdown("### Comment")
-
+    # --------------------------------------------------------
 
     comment = clean_comment(
         result["comment"]
     )
 
 
-    st.text_area(
-        "Generated Comment",
-        value=comment,
-        height=130,
-        key="generated_comment"
+    st.markdown(
+        "**Generated Comment:**"
     )
 
 
-    # ========================================================
+    st.text_area(
+        "",
+        value=comment,
+        height=100,
+        key="generated_comment",
+        label_visibility="collapsed"
+    )
+
+
+    # --------------------------------------------------------
     # COPY BUTTON
-    # ========================================================
+    # --------------------------------------------------------
 
     escaped_comment = (
         comment
@@ -2127,52 +2199,38 @@ if "moderation_result" in st.session_state:
     components.html(
         f"""
         <button
-            onclick="navigator.clipboard.writeText(`{escaped_comment}`)"
+            onclick="
+                navigator.clipboard.writeText(`{escaped_comment}`);
+                this.innerText='✓ Copied';
+            "
             style="
-                padding:10px 18px;
-                border:none;
-                border-radius:8px;
-                cursor:pointer;
-                font-size:14px;
+                padding: 8px 16px;
+                border: 1px solid #cccccc;
+                border-radius: 6px;
+                background: white;
+                cursor: pointer;
+                font-size: 14px;
             "
         >
             📋 Copy Comment
         </button>
         """,
-        height=50
+        height=45
     )
 
 
-    # ========================================================
-    # TECHNICAL DETAILS
-    # ========================================================
-
-    with st.expander("Technical Details"):
-
-        st.write(
-            f"Model used: `{used_model}`"
-        )
-
-        st.write(
-            f"Rule ID: `{result['rule_id']}`"
-        )
-
-        st.write(
-            f"Decision: `{result['decision']}`"
-        )
-
-
 # ============================================================
-# GUIDELINES LINK
+# GUIDELINES REFERENCE
+# ORIGINAL BOTTOM SECTION
 # ============================================================
 
 st.markdown("---")
 
 st.markdown(
-    "**Noon Review Guidelines**"
+    "### Guidelines Reference"
 )
 
 st.markdown(
-    "[Open Noon Guidelines]"
+    "[Noon Customer Reviews Guidelines]"
     "(https://help.noon.com/portal/en/kb/articles/customer-reviews)"
 )
