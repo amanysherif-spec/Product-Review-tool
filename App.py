@@ -3,7 +3,7 @@ import os
 import streamlit.components.v1 as components
 import json
 import re
-import time
+import hashlib
 from groq import Groq
 
 
@@ -24,6 +24,9 @@ st.set_page_config(
 
 PRIMARY_MODEL = "openai/gpt-oss-120b"
 FALLBACK_MODEL = "openai/gpt-oss-20b"
+
+# Change this whenever the moderation rules/prompt are materially changed.
+POLICY_VERSION = "2026-09-22-v2"
 
 
 # ============================================================
@@ -151,7 +154,7 @@ def normalize_text(text):
     if not text:
         return ""
 
-    text = str(text).strip().lower()
+    text = str(text).strip().casefold()
 
     # Remove Arabic diacritics and Tatweel
     text = re.sub(r"[\u064B-\u065F\u0670\u0640]", "", text)
@@ -168,10 +171,11 @@ def normalize_text(text):
         })
     )
 
-    # Normalize whitespace
+    # Normalize punctuation/spaces
     text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"[“”\"'`]", "", text)
 
-    return text
+    return text.strip()
 
 
 def contains_phrase(text, phrases):
@@ -187,13 +191,48 @@ def contains_phrase(text, phrases):
 
 
 # ============================================================
+# DETERMINISTIC CACHE KEY
+# ============================================================
+
+def build_cache_key(review, language):
+    normalized_review = normalize_text(review)
+
+    raw_key = (
+        f"{POLICY_VERSION}|"
+        f"{language}|"
+        f"{normalized_review}"
+    )
+
+    return hashlib.sha256(
+        raw_key.encode("utf-8")
+    ).hexdigest()
+
+
+def get_cached_result(review, language):
+    cache = st.session_state.get("evaluation_cache", {})
+    key = build_cache_key(review, language)
+
+    return cache.get(key)
+
+
+def save_cached_result(review, language, result):
+    if "evaluation_cache" not in st.session_state:
+        st.session_state["evaluation_cache"] = {}
+
+    key = build_cache_key(review, language)
+
+    # Store a clean copy.
+    st.session_state["evaluation_cache"][key] = dict(result)
+
+
+# ============================================================
 # HARD RULE DETECTION
 # ============================================================
 
 def detect_hard_rules(review):
     """
-    Deterministic rules for violations that must never be
-    overridden by the AI.
+    Deterministic rules for clear Article violations.
+    These rules are FINAL and must never be overridden by AI.
     """
 
     text = normalize_text(review)
@@ -230,7 +269,6 @@ def detect_hard_rules(review):
     if contains_phrase(text, price_phrases):
         return "3.1"
 
-
     # --------------------------------------------------------
     # 3.2 AVAILABILITY / STOCK
     # --------------------------------------------------------
@@ -258,7 +296,6 @@ def detect_hard_rules(review):
 
     if contains_phrase(text, availability_phrases):
         return "3.2"
-
 
     # --------------------------------------------------------
     # 2.4 DAMAGE
@@ -289,7 +326,6 @@ def detect_hard_rules(review):
     if contains_phrase(text, damage_phrases):
         return "2.4"
 
-
     # --------------------------------------------------------
     # 2.4 MISSING ITEM / PART
     # --------------------------------------------------------
@@ -319,37 +355,31 @@ def detect_hard_rules(review):
     if contains_phrase(text, missing_phrases):
         return "2.4"
 
-
     return None
 
 
 # ============================================================
-# HIGH CONFIDENCE OFFENSIVE LANGUAGE DETECTION
+# HIGH-CONFIDENCE OFFENSIVE LANGUAGE
 # ============================================================
 
 def detect_clear_offensive_language(review):
     """
-    High-confidence offensive / vulgar / distasteful phrases.
+    Only detects high-confidence offensive/vulgar language.
 
-    This is intentionally not a generic negative-word detector.
-    Normal criticism such as:
-        bad
-        poor quality
-        not useful
-        I don't like it
-    should remain allowed.
+    Normal negative product feedback such as:
+    - bad
+    - poor quality
+    - not useful
+    - I don't like it
 
-    Contextual offensive language is primarily handled by the AI.
+    remains ALLOWED unless another rule applies.
     """
 
     text = normalize_text(review)
 
     offensive_phrases = [
 
-        # ----------------------------------------------------
-        # ENGLISH - HIGH CONFIDENCE
-        # ----------------------------------------------------
-
+        # English
         "fucking garbage",
         "fucking shit",
         "piece of shit",
@@ -368,10 +398,7 @@ def detect_clear_offensive_language(review):
         "what a disgusting product",
         "disgusting item",
 
-        # ----------------------------------------------------
-        # ARABIC - HIGH CONFIDENCE
-        # ----------------------------------------------------
-
+        # Arabic
         "المنتج مقرف",
         "منتج مقرف",
         "مقرف جدا",
@@ -405,22 +432,14 @@ def detect_clear_offensive_language(review):
 # ============================================================
 
 def detect_high_confidence_article_rule(review):
-    """
-    Deterministic checks for additional high-confidence Article violations.
-
-    These checks intentionally use strong contextual phrases instead of
-    single generic words, because ordinary product reviews can mention
-    words such as "order", "price", or "seller" without necessarily
-    describing a prohibited experience.
-    """
 
     text = normalize_text(review)
 
     # --------------------------------------------------------
-    # 1.1 PROMOTIONAL / ADVERTISING CONTENT
+    # 1.1 PROMOTIONAL / ADVERTISING
     # --------------------------------------------------------
+
     promotional_phrases = [
-        "use my promo code",
         "use my promo code",
         "use my discount code",
         "use this discount code",
@@ -438,6 +457,7 @@ def detect_high_confidence_article_rule(review):
         "dm me to buy",
         "message me to buy",
         "whatsapp me to buy",
+
         "اتواصل معي للشراء",
         "تواصل معي للشراء",
         "استخدم كود الخصم",
@@ -445,21 +465,27 @@ def detect_high_confidence_article_rule(review):
         "كود تخفيض",
         "اشتروا من متجري",
         "اشتري من متجري",
-        "تواصل معي للشراء",
     ]
 
     if contains_phrase(text, promotional_phrases):
         return "1.1"
 
-    # Explicit external promotional/social links or handles.
-    if re.search(r"https?://|www\.|@[a-z0-9_.-]{3,}", text):
+    # External promotional/social links
+    if re.search(r"https?://|www\.", text):
+        return "1.1"
+
+    # Social handles only when explicitly present.
+    if re.search(r"@[a-z0-9_.-]{3,}", text):
         return "1.1"
 
     # --------------------------------------------------------
     # 1.4 PERSONAL / SENSITIVE INFORMATION
     # --------------------------------------------------------
-    # High-confidence email address.
-    if re.search(r"\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b", text):
+
+    if re.search(
+        r"\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b",
+        text
+    ):
         return "1.4"
 
     personal_info_phrases = [
@@ -469,6 +495,7 @@ def detect_high_confidence_article_rule(review):
         "my address is",
         "call me at",
         "contact me at",
+
         "رقم موبايلي",
         "رقم تليفوني",
         "رقم هاتفي",
@@ -485,6 +512,7 @@ def detect_high_confidence_article_rule(review):
     # --------------------------------------------------------
     # 4.2 COMPENSATION / FINANCIAL INCENTIVE
     # --------------------------------------------------------
+
     incentive_phrases = [
         "paid to review",
         "paid for this review",
@@ -501,6 +529,7 @@ def detect_high_confidence_article_rule(review):
         "compensated to review",
         "in exchange for a positive review",
         "in exchange for a good review",
+
         "تم الدفع لي مقابل التقييم",
         "اخذت فلوس مقابل التقييم",
         "اخذت مال مقابل التقييم",
@@ -514,8 +543,9 @@ def detect_high_confidence_article_rule(review):
         return "4.2"
 
     # --------------------------------------------------------
-    # 4.1 CONFLICT OF INTEREST / MANIPULATION
+    # 4.1 CONFLICT OF INTEREST
     # --------------------------------------------------------
+
     conflict_phrases = [
         "i am the seller",
         "i'm the seller",
@@ -532,6 +562,7 @@ def detect_high_confidence_article_rule(review):
         "my friend is the seller",
         "my family member is the seller",
         "my relative is the seller",
+
         "انا البائع",
         "انا موظف في نون",
         "انا من شركة نون",
@@ -548,6 +579,7 @@ def detect_high_confidence_article_rule(review):
     # --------------------------------------------------------
     # 2.1 SELLER PERFORMANCE / REPUTATION
     # --------------------------------------------------------
+
     seller_feedback_phrases = [
         "seller was",
         "seller is",
@@ -562,6 +594,7 @@ def detect_high_confidence_article_rule(review):
         "seller was unhelpful",
         "bad seller",
         "good seller",
+
         "البائع كان",
         "البائع هو",
         "البائع ارسل",
@@ -583,6 +616,7 @@ def detect_high_confidence_article_rule(review):
     # --------------------------------------------------------
     # 2.2 ORDER / RETURN EXPERIENCE
     # --------------------------------------------------------
+
     order_experience_phrases = [
         "my order was cancelled",
         "my order was canceled",
@@ -599,6 +633,7 @@ def detect_high_confidence_article_rule(review):
         "refund was refused",
         "refund not received",
         "did not receive my refund",
+
         "لم يصلني الاسترداد",
         "الاسترداد لم يصل",
         "الطلب اتلغى",
@@ -615,6 +650,7 @@ def detect_high_confidence_article_rule(review):
     # --------------------------------------------------------
     # 2.3 SHIPPING / PACKAGING / DELIVERY
     # --------------------------------------------------------
+
     shipping_experience_phrases = [
         "delivery was late",
         "late delivery",
@@ -627,6 +663,7 @@ def detect_high_confidence_article_rule(review):
         "bad packaging",
         "poor packaging",
         "package was damaged",
+
         "التوصيل اتاخر",
         "التوصيل تأخر",
         "التوصيل كان متاخر",
@@ -651,17 +688,9 @@ def detect_high_confidence_article_rule(review):
 # ============================================================
 
 def get_closest_rule(review):
-    """
-    For allowed reviews, we still need to display a valid
-    Article guideline section/sub-rule.
-
-    This does NOT mean that the review violated the rule.
-    It only identifies the closest relevant Article category.
-    """
 
     text = normalize_text(review)
 
-    # Availability-related review
     availability_words = [
         "hope it comes in more colors",
         "hope it will be available",
@@ -677,7 +706,6 @@ def get_closest_rule(review):
     if contains_phrase(text, availability_words):
         return "3.2"
 
-    # Seller-related feedback
     seller_words = [
         "seller",
         "seller was",
@@ -689,7 +717,6 @@ def get_closest_rule(review):
     if contains_phrase(text, seller_words):
         return "2.1"
 
-    # Order / return
     order_words = [
         "order",
         "ordered",
@@ -699,7 +726,6 @@ def get_closest_rule(review):
         "طلب",
         "طلبت",
         "ارجاع",
-        "إرجاع",
         "استرجاع",
         "استرداد",
     ]
@@ -707,7 +733,6 @@ def get_closest_rule(review):
     if contains_phrase(text, order_words):
         return "2.2"
 
-    # Shipping / delivery
     shipping_words = [
         "delivery",
         "delivered",
@@ -727,7 +752,6 @@ def get_closest_rule(review):
     if contains_phrase(text, shipping_words):
         return "2.3"
 
-    # Damage / missing
     damage_missing_words = [
         "broken",
         "damaged",
@@ -741,7 +765,6 @@ def get_closest_rule(review):
     if contains_phrase(text, damage_missing_words):
         return "2.4"
 
-    # Generic product feedback
     return "2.4"
 
 
@@ -807,7 +830,7 @@ IMPORTANT GENERAL PRINCIPLES
 1. Reviews should focus solely on the customer's personal
    experience with the product purchased.
 
-2. Normal product criticism is allowed.
+2. Normal product criticism is ALLOWED.
 
 Examples of ALLOWED normal criticism:
 
@@ -834,53 +857,7 @@ OFFENSIVE / INAPPROPRIATE LANGUAGE
 Any genuinely offensive, abusive, vulgar, inappropriate, or
 distasteful language must be classified as NOT_ALLOWED under 1.2.
 
-This applies to both English and Arabic.
-
-Examples that MUST be NOT_ALLOWED:
-
-- disgusting product
-- This product is disgusting
-- The product is disgusting
-- What a disgusting product
-- fucking garbage
-- piece of shit
-- shit product
-- fuck this
-- fuck you
-
-Arabic examples that MUST be NOT_ALLOWED:
-
-- المنتج مقرف
-- منتج مقرف
-- المنتج زبالة
-- منتج زبالة
-- يا غبي
-- البائع غبي
-- المنتج وسخ
-- المنتج زفت
-- خرا
-- قرف
-- ألفاظ بذيئة أو مهينة أو غير لائقة
-
-IMPORTANT:
-
-Do not confuse ordinary negative product feedback with offensive
-language.
-
-For example:
-
-"The product is bad"
-"The quality is poor"
-"I don't like it"
-"المنتج سيء"
-
-must remain ALLOWED unless another guideline is violated.
-
-However, if the wording is genuinely vulgar, abusive, insulting,
-inappropriate, or distasteful according to normal language usage,
-classify it as NOT_ALLOWED under 1.2.
-
-Use contextual understanding, not only keyword matching.
+Do not classify normal negative product criticism as offensive.
 
 ============================================================
 PRICING
@@ -899,7 +876,7 @@ Examples:
 
 These MUST be NOT_ALLOWED.
 
-However, normal value-for-money opinions are allowed:
+Normal value-for-money opinions are allowed:
 
 - Great quality for the price.
 - Good product for this price.
@@ -973,6 +950,16 @@ If there is no guideline violation, choose ALLOWED.
 
 Do not invent a violation simply because the review is negative.
 
+Do not classify a review as NOT_ALLOWED only because it mentions:
+- price
+- seller
+- order
+- delivery
+- return
+- availability
+
+The context must actually match the Article rule.
+
 ============================================================
 OUTPUT
 ============================================================
@@ -1029,6 +1016,7 @@ REVIEW_SCHEMA = {
 
 @st.cache_resource(show_spinner=False)
 def get_groq_client():
+
     api_key = os.getenv("GROQ_API_KEY")
 
     if not api_key:
@@ -1055,6 +1043,7 @@ def call_model(
     model,
     reasoning_effort=None
 ):
+
     client = get_groq_client()
 
     prompt = build_prompt(review, language)
@@ -1066,8 +1055,9 @@ def call_model(
                 "role": "system",
                 "content": (
                     "You are a strict Noon Customer Review "
-                    "moderation classifier. Follow the supplied "
-                    "guidelines exactly. Return the required JSON only."
+                    "moderation classifier. "
+                    "Follow the supplied guidelines exactly. "
+                    "Return the required JSON only."
                 )
             },
             {
@@ -1129,22 +1119,15 @@ def validate_result(result):
 
 
 # ============================================================
-# HARD RULE OVERRIDE
+# FIXED SELLER-FACING COMMENTS
 # ============================================================
 
-def apply_hard_rule(result, rule_id, language):
-    """
-    Create a seller-facing explanation that can be sent directly
-    without additional editing. The wording is tied to the relevant
-    Noon Customer Review guideline and explains why the review cannot remain.
-    """
-
-    result = dict(result)
-    result["decision"] = "NOT_ALLOWED"
-    result["rule_id"] = rule_id
+def get_not_allowed_comment(rule_id, language):
 
     if language == "Arabic":
+
         comments = {
+
             "1.1":
                 "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يتضمن محتوى ترويجيًا أو إعلانيًا، مثل الترويج لمنتج أو متجر، مشاركة كود خصم، أو توجيه العملاء إلى وسيلة شراء أو تواصل. "
                 "وفقًا للبند 1.1 من إرشادات تقييمات العملاء في نون، يجب أن يركز التقييم على تجربة العميل مع المنتج نفسه، ولذلك لا يمكن الإبقاء على هذا التقييم بصيغته الحالية.",
@@ -1158,7 +1141,7 @@ def apply_hard_rule(result, rule_id, language):
                 "وفقًا للبند 1.3 من إرشادات تقييمات العملاء في نون، لا يُسمح بالمحتوى الذي يتضمن كراهية أو تمييزًا، ولذلك لا يمكن الإبقاء على هذا التقييم.",
 
             "1.4":
-                "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يتضمن معلومات شخصية أو حساسة، مثل رقم الهاتف أو البريد الإلكتروني أو عنوان أو بيانات يمكن استخدامها للتعرف على شخص. "
+                "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يتضمن معلومات شخصية أو حساسة، مثل رقم الهاتف أو البريد الإلكتروني أو العنوان أو بيانات يمكن استخدامها للتعرف على شخص. "
                 "وفقًا للبند 1.4 من إرشادات تقييمات العملاء في نون، لا يُسمح بمشاركة هذا النوع من المعلومات داخل تقييم المنتج، ولذلك لا يمكن الإبقاء على التقييم.",
 
             "2.1":
@@ -1193,8 +1176,11 @@ def apply_hard_rule(result, rule_id, language):
                 "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يشير إلى كتابة التقييم مقابل مقابل مادي أو منتج مجاني أو حافز مالي أو منفعة أخرى. "
                 "وفقًا للبند 4.2 من إرشادات تقييمات العملاء في نون، التقييمات المنشورة مقابل تعويض أو حافز غير مسموح بها، ولذلك لا يمكن الإبقاء على التقييم.",
         }
+
     else:
+
         comments = {
+
             "1.1":
                 "Regarding the submitted review, please note that it is not allowed because it contains promotional or advertising content, such as promoting a product or store, sharing a discount code, or directing customers to a purchasing or contact method. "
                 "Under Section 1.1 of the Noon Customer Review guidelines, reviews should focus on the customer's experience with the product itself, so this review cannot remain in its current form.",
@@ -1244,187 +1230,151 @@ def apply_hard_rule(result, rule_id, language):
                 "Under Section 4.2 of the Noon Customer Review guidelines, reviews submitted in exchange for compensation or incentives are not allowed, so the review cannot remain.",
         }
 
-    result["comment"] = comments.get(rule_id, result.get("comment", ""))
-    return result
+    return comments.get(rule_id, "")
 
 
 # ============================================================
-# OFFENSIVE LANGUAGE OVERRIDE
+# OFFENSIVE COMMENT
 # ============================================================
 
-def apply_offensive_rule(result, language):
-
-    result = dict(result)
-    result["decision"] = "NOT_ALLOWED"
-    result["rule_id"] = "1.2"
+def get_offensive_comment(language):
 
     if language == "Arabic":
-        result["comment"] = (
-            "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يتضمن ألفاظًا أو تعبيرات مسيئة أو مبتذلة أو غير لائقة أو غير مناسبة. "
-            "وفقًا للبند 1.2 من إرشادات تقييمات العملاء في نون، يجب ألا تتضمن تقييمات المنتجات هذا النوع من المحتوى، ولذلك لا يمكن الإبقاء على التقييم."
-        )
-    else:
-        result["comment"] = (
-            "Regarding the submitted review, please note that it is not allowed because it contains offensive, abusive, vulgar, inappropriate, or distasteful language. "
-            "Under Section 1.2 of the Noon Customer Review guidelines, this type of content is not permitted in product reviews, so the review cannot remain."
+        return (
+            "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يتضمن ألفاظًا "
+            "أو تعبيرات مسيئة أو مبتذلة أو غير لائقة أو غير مناسبة. "
+            "وفقًا للبند 1.2 من إرشادات تقييمات العملاء في نون، يجب ألا تتضمن "
+            "تقييمات المنتجات هذا النوع من المحتوى، ولذلك لا يمكن الإبقاء على التقييم."
         )
 
-    return result
-
-
-# ============================================================
-# ALLOWED RULE
-# ============================================================
-
-def apply_allowed_rule(result, review, language):
-
-    result = dict(result)
-    result["decision"] = "ALLOWED"
-    closest_rule = get_closest_rule(review)
-    result["rule_id"] = closest_rule
-
-    if language == "Arabic":
-        result["comment"] = (
-            "بخصوص التقييم المذكور، يرجى العلم بأنه مسموح ويمكن الإبقاء عليه لأنه يركز على تجربة العميل الشخصية مع المنتج، مثل الجودة أو الأداء أو الفعالية أو الاستخدام أو مدى رضا العميل عن المنتج. "
-            "ولا يتضمن التقييم، وفقًا لإرشادات تقييمات العملاء في نون، محتوى ترويجيًا أو ألفاظًا مسيئة أو معلومات شخصية أو ملاحظات عن أداء البائع أو تجربة الطلب والإرجاع أو الشحن والتوصيل أو العثور على المنتج بسعر أرخص في مكان آخر أو حالة المخزون أو تعارض المصالح أو الحصول على مقابل. "
-            "وبالتالي لا توجد مخالفة واضحة لبنود الإزالة في Article الخاص بتقييمات العملاء، ويمكن الإبقاء على التقييم كما هو."
-        )
-    else:
-        result["comment"] = (
-            "Regarding the submitted review, please note that it is allowed and can remain because it focuses on the customer's personal experience with the product, such as its quality, performance, effectiveness, usefulness, or overall satisfaction. "
-            "Under the Noon Customer Review guidelines, the review does not contain promotional content, offensive language, personal information, seller-performance feedback, order or return feedback, shipping or delivery feedback, a cheaper-elsewhere price comparison, stock-availability feedback, a conflict of interest, or compensation-related content. "
-            "Therefore, there is no clear violation of the removal rules in the Customer Reviews Article, and the review can remain as submitted."
-        )
-
-    return result
-
-
-# ============================================================
-# SECOND AI ADJUDICATOR
-# ============================================================
-
-def call_adjudicator(review, language, first_result):
-
-    adjudicator_prompt = f"""
-You are the final quality-control reviewer for Noon Customer Reviews.
-
-Review:
-{review}
-
-First classifier result:
-{json.dumps(first_result, ensure_ascii=False)}
-
-Re-evaluate the review independently using the Noon Customer Review
-guidelines below.
-
-NORMAL PRODUCT CRITICISM = ALLOWED.
-Examples include bad product, poor quality, battery drains quickly,
-I don't like it, المنتج سيء, الجودة ضعيفة, البطارية بتخلص بسرعة.
-
-A genuinely offensive, abusive, vulgar, inappropriate, or distasteful
-expression = NOT_ALLOWED under 1.2.
-
-Clear violations:
-1.1 promotional/advertising
-1.2 offensive/inappropriate language
-1.3 hate speech/discrimination
-1.4 personal/sensitive information
-2.1 seller performance/reputation
-2.2 ordering/return experience
-2.3 shipping/packaging/delivery
-2.4 damage/missing items
-3.1 finding the product cheaper elsewhere
-3.2 stock/availability
-4.1 conflict of interest
-4.2 compensation/financial incentive
-
-Do not mark a review NOT_ALLOWED merely because it is negative,
-disappointed, critical, or poorly written. A simple mention of buying
-or ordering the product is not an order violation. A simple mention of
-a seller is not a seller violation unless actual seller feedback is given.
-A simple mention of price is not a violation unless it compares the
-product with a cheaper alternative or clearly falls under the pricing rule.
-A general wish for more colors or sizes is not a stock violation.
-
-If a clear Article violation exists, choose NOT_ALLOWED with the most
-direct rule. Otherwise choose ALLOWED.
-
-Return ONLY valid JSON with decision, rule_id, and comment.
-No markdown.
-No additional fields.
-"""
-
-    client = get_groq_client()
-
-    response = client.chat.completions.create(
-        model=PRIMARY_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a final quality-control reviewer. "
-                    "Follow the Noon guidelines exactly and return JSON only."
-                )
-            },
-            {
-                "role": "user",
-                "content": adjudicator_prompt
-            }
-        ],
-        temperature=0,
-        reasoning_effort="low",
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "review_adjudication",
-                "strict": True,
-                "schema": REVIEW_SCHEMA
-            }
-        }
+    return (
+        "Regarding the submitted review, please note that it is not allowed "
+        "because it contains offensive, abusive, vulgar, inappropriate, or "
+        "distasteful language. Under Section 1.2 of the Noon Customer Review "
+        "guidelines, this type of content is not permitted in product reviews, "
+        "so the review cannot remain."
     )
 
-    content = response.choices[0].message.content
 
-    if not content:
-        raise ValueError("Empty adjudicator response.")
+# ============================================================
+# ALLOWED COMMENT
+# ============================================================
 
-    return validate_result(json.loads(content))
+def get_allowed_comment(language):
+
+    if language == "Arabic":
+        return (
+            "بخصوص التقييم المذكور، يرجى العلم بأنه مسموح ويمكن الإبقاء عليه "
+            "لأنه يركز على تجربة العميل الشخصية مع المنتج، مثل الجودة أو الأداء "
+            "أو الفعالية أو الاستخدام أو مدى رضا العميل عن المنتج. "
+            "ولا يتضمن التقييم محتوى ترويجيًا أو ألفاظًا مسيئة أو معلومات شخصية "
+            "أو ملاحظات عن أداء البائع أو تجربة الطلب والإرجاع أو الشحن والتوصيل "
+            "أو العثور على المنتج بسعر أرخص في مكان آخر أو حالة المخزون أو تعارض "
+            "المصالح أو الحصول على مقابل. وبالتالي لا توجد مخالفة واضحة لبنود "
+            "الإزالة في Article الخاص بتقييمات العملاء، ويمكن الإبقاء على التقييم كما هو."
+        )
+
+    return (
+        "Regarding the submitted review, please note that it is allowed and can "
+        "remain because it focuses on the customer's personal experience with "
+        "the product, such as its quality, performance, effectiveness, usefulness, "
+        "or overall satisfaction. Under the Noon Customer Review guidelines, "
+        "the review does not contain promotional content, offensive language, "
+        "personal information, seller-performance feedback, order or return "
+        "feedback, shipping or delivery feedback, a cheaper-elsewhere price "
+        "comparison, stock-availability feedback, a conflict of interest, or "
+        "compensation-related content. Therefore, there is no clear violation "
+        "of the removal rules in the Customer Reviews Article, and the review "
+        "can remain as submitted."
+    )
 
 
 # ============================================================
-# SECOND REVIEW DECISION
+# CREATE DETERMINISTIC RESULT
 # ============================================================
 
-def should_run_second_review(review, first_result):
-    """
-    Keep the second AI pass only for cases where it adds value.
-    Deterministic Article violations are already final and do not need
-    another network request. Clear ALLOWED reviews also skip the second
-    pass unless they contain potentially ambiguous policy-related cues.
-    """
+def build_deterministic_result(rule_id, language):
 
-    decision = first_result.get("decision")
+    result = {
+        "decision": "NOT_ALLOWED",
+        "rule_id": rule_id,
+        "comment": get_not_allowed_comment(rule_id, language)
+    }
 
-    # A NOT_ALLOWED AI result without a deterministic rule deserves
-    # verification to reduce false positives.
-    if decision == "NOT_ALLOWED":
-        return True
+    return result
 
-    text = normalize_text(review)
 
-    ambiguous_cues = [
-        "seller", "البائع", "البايع",
-        "order", "ordered", "return", "refund", "طلب", "ارجاع", "استرجاع",
-        "delivery", "shipping", "package", "packaging", "توصيل", "شحن", "تغليف",
-        "price", "cheaper", "expensive", "سعر", "ارخص",
-        "stock", "available", "availability", "متوفر", "مخزون",
-        "promo", "discount", "coupon", "كود", "خصم",
-        "email", "phone", "address", "رقم", "ايميل", "عنوان",
-        "competitor", "employee", "manufacturer", "paid", "free product",
-        "منافس", "موظف", "مصنع", "مدفوع", "فلوس", "منتج مجاني"
-    ]
+def build_offensive_result(language):
 
-    return any(cue in text for cue in ambiguous_cues)
+    return {
+        "decision": "NOT_ALLOWED",
+        "rule_id": "1.2",
+        "comment": get_offensive_comment(language)
+    }
+
+
+def build_allowed_result(review, language):
+
+    return {
+        "decision": "ALLOWED",
+        "rule_id": get_closest_rule(review),
+        "comment": get_allowed_comment(language)
+    }
+
+
+# ============================================================
+# AI RESULT SANITIZATION
+# ============================================================
+
+def sanitize_ai_result(result, review, language):
+
+    result = validate_result(result)
+
+    # --------------------------------------------------------
+    # NEVER allow AI to override deterministic Article rules.
+    # --------------------------------------------------------
+
+    hard_rule = detect_hard_rules(review)
+
+    if not hard_rule:
+        hard_rule = detect_high_confidence_article_rule(review)
+
+    if hard_rule:
+        return build_deterministic_result(
+            hard_rule,
+            language
+        )
+
+    if detect_clear_offensive_language(review):
+        return build_offensive_result(language)
+
+    # --------------------------------------------------------
+    # If AI says ALLOWED, replace its comment with our fixed
+    # deterministic allowed comment.
+    # --------------------------------------------------------
+
+    if result["decision"] == "ALLOWED":
+        return build_allowed_result(
+            review,
+            language
+        )
+
+    # --------------------------------------------------------
+    # AI NOT_ALLOWED result.
+    #
+    # We keep the AI rule only when no deterministic rule
+    # already identified a violation.
+    # The comment is generated from our fixed rule template.
+    # --------------------------------------------------------
+
+    return {
+        "decision": "NOT_ALLOWED",
+        "rule_id": result["rule_id"],
+        "comment": get_not_allowed_comment(
+            result["rule_id"],
+            language
+        )
+    }
 
 
 # ============================================================
@@ -1434,108 +1384,150 @@ def should_run_second_review(review, first_result):
 def evaluate_with_reliability(review, language):
 
     # --------------------------------------------------------
-    # FIRST: DETERMINISTIC ARTICLE RULES
+    # 1. CHECK SESSION CACHE FIRST
     # --------------------------------------------------------
-    # These rules are immediate and do not require an API call.
-    # This makes clear-cut violations much faster.
+    #
+    # This guarantees that pressing Evaluate repeatedly for
+    # the exact same review + language returns the exact same
+    # result without another AI call.
+    #
+
+    cached_result = get_cached_result(
+        review,
+        language
+    )
+
+    if cached_result is not None:
+        return dict(cached_result)
+
+    # --------------------------------------------------------
+    # 2. DETERMINISTIC RULES FIRST
+    # --------------------------------------------------------
 
     hard_rule = detect_hard_rules(review)
 
-    if not hard_rule:
-        hard_rule = detect_high_confidence_article_rule(review)
-
-    # Clear offensive language is also deterministic.
-    clear_offensive = detect_clear_offensive_language(review)
-
-    # --------------------------------------------------------
-    # INSTANT FINALIZATION FOR CLEAR DETERMINISTIC CASES
-    # --------------------------------------------------------
-    # No AI call is needed when the Article rule is unambiguous.
-
-    deterministic_rule = hard_rule
-
-    if clear_offensive and not deterministic_rule:
-        deterministic_rule = "1.2"
-
-    if deterministic_rule:
-        result = {
-            "decision": "NOT_ALLOWED",
-            "rule_id": deterministic_rule,
-            "comment": ""
-        }
-
-        return apply_hard_rule(
-            result,
-            deterministic_rule,
+    if hard_rule:
+        result = build_deterministic_result(
+            hard_rule,
             language
         )
 
+        save_cached_result(
+            review,
+            language,
+            result
+        )
+
+        return result
+
     # --------------------------------------------------------
-    # ONE FAST AI CALL FOR NORMAL / AMBIGUOUS REVIEWS
+    # 3. HIGH-CONFIDENCE ARTICLE RULES
     # --------------------------------------------------------
-    # Low reasoning is intentionally used here because the prompt already
-    # contains the complete rule set and the final output is schema-limited.
+
+    article_rule = detect_high_confidence_article_rule(review)
+
+    if article_rule:
+        result = build_deterministic_result(
+            article_rule,
+            language
+        )
+
+        save_cached_result(
+            review,
+            language,
+            result
+        )
+
+        return result
+
+    # --------------------------------------------------------
+    # 4. HIGH-CONFIDENCE OFFENSIVE LANGUAGE
+    # --------------------------------------------------------
+
+    if detect_clear_offensive_language(review):
+
+        result = build_offensive_result(
+            language
+        )
+
+        save_cached_result(
+            review,
+            language,
+            result
+        )
+
+        return result
+
+    # --------------------------------------------------------
+    # 5. ONLY ONE AI DECISION
+    # --------------------------------------------------------
+    #
+    # The previous version could run:
+    # Primary -> Fallback -> Adjudicator
+    #
+    # That creates multiple independent opportunities for
+    # different decisions.
+    #
+    # Now:
+    #
+    # Primary -> Fallback ONLY if the primary API call fails.
+    #
+    # There is NO second opinion.
+    #
 
     try:
-        first_result = call_model(
+
+        ai_result = call_model(
             review,
             language,
             PRIMARY_MODEL,
             reasoning_effort="low"
         )
 
-        first_result = validate_result(first_result)
+        ai_result = validate_result(ai_result)
 
-    except Exception:
+    except Exception as primary_error:
 
         try:
-            first_result = call_model(
+
+            ai_result = call_model(
                 review,
                 language,
                 FALLBACK_MODEL,
                 reasoning_effort="low"
             )
 
-            first_result = validate_result(first_result)
+            ai_result = validate_result(ai_result)
 
-        except Exception:
-            raise
+        except Exception as fallback_error:
 
-    # --------------------------------------------------------
-    # SECOND AI REVIEW ONLY WHEN IT ADDS VALUE
-    # --------------------------------------------------------
-    # This avoids paying the latency of two AI calls for every review.
-
-    if should_run_second_review(review, first_result):
-        try:
-            final_result = call_adjudicator(
-                review,
-                language,
-                first_result
+            raise RuntimeError(
+                "Both moderation models failed. "
+                f"Primary error: {primary_error}. "
+                f"Fallback error: {fallback_error}."
             )
-        except Exception:
-            final_result = first_result
-    else:
-        final_result = first_result
 
     # --------------------------------------------------------
-    # FINAL DETERMINISTIC SAFETY CHECKS
+    # 6. SANITIZE AI RESULT AGAINST DETERMINISTIC RULES
     # --------------------------------------------------------
 
-    if detect_clear_offensive_language(review):
-        final_result = apply_offensive_rule(
-            final_result,
-            language
-        )
+    final_result = sanitize_ai_result(
+        ai_result,
+        review,
+        language
+    )
 
-    if final_result["decision"] == "ALLOWED":
-        final_result = apply_allowed_rule(
-            final_result,
-            review,
-            language
-        )
+    # --------------------------------------------------------
+    # 7. SAVE FINAL RESULT
+    # --------------------------------------------------------
 
-    return validate_result(final_result)
+    save_cached_result(
+        review,
+        language,
+        final_result
+    )
+
+    return final_result
 
 
 # ============================================================
@@ -1587,7 +1579,7 @@ review = st.text_area(
 
 
 # ------------------------------------------------------------
-# EVALUATE REVIEW BUTTON - RED TEXT
+# BUTTON STYLE
 # ------------------------------------------------------------
 
 st.markdown(
@@ -1622,12 +1614,14 @@ st.markdown(
 col1, col2 = st.columns(2)
 
 with col1:
+
     evaluate_button = st.button(
         "Evaluate Review",
         use_container_width=True
     )
 
 with col2:
+
     reset_button = st.button(
         "Reset",
         use_container_width=True
@@ -1635,12 +1629,31 @@ with col2:
 
 
 # ------------------------------------------------------------
+# INITIALIZE SESSION STATE
+# ------------------------------------------------------------
+
+if "review_result" not in st.session_state:
+    st.session_state["review_result"] = None
+
+if "copy_comment" not in st.session_state:
+    st.session_state["copy_comment"] = ""
+
+if "evaluation_cache" not in st.session_state:
+    st.session_state["evaluation_cache"] = {}
+
+
+# ------------------------------------------------------------
 # RESET
 # ------------------------------------------------------------
 
 if reset_button:
+
     st.session_state["review_result"] = None
     st.session_state["copy_comment"] = ""
+
+    # Clear cached evaluation results as well.
+    st.session_state["evaluation_cache"] = {}
+
     st.rerun()
 
 
@@ -1681,10 +1694,13 @@ if st.session_state.get("review_result"):
     comment = result["comment"]
 
     if decision == "ALLOWED":
+
         decision_text = (
             "✅ Allowed — it should not be removed."
         )
+
     else:
+
         decision_text = (
             "❌ Not allowed — it should be removed"
         )
@@ -1719,17 +1735,16 @@ if st.session_state.get("review_result"):
         rule_label = "Specific Sub-rule:"
         comment_label = "Comment:"
 
-
     st.markdown(
         f"""
-**{decision_label}** {decision_text}
+        **{decision_label}** {decision_text}
 
-**{section_label}** {section_text}
+        **{section_label}** {section_text}
 
-**{rule_label}** {rule_text}
+        **{rule_label}** {rule_text}
 
-**{comment_label}** {comment}
-"""
+        **{comment_label}** {comment}
+        """
     )
 
 
@@ -1737,13 +1752,25 @@ if st.session_state.get("review_result"):
     # COPY COMMENT
     # --------------------------------------------------------
 
-    copy_text = comment.replace("'", "\\'").replace("\n", "\\n")
+    # Safely pass the comment to JavaScript.
+    copy_text_json = json.dumps(
+        comment,
+        ensure_ascii=False
+    )
 
     components.html(
         f"""
         <script>
         function copyComment() {{
-            navigator.clipboard.writeText('{copy_text}');
+            const text = {copy_text_json};
+
+            navigator.clipboard.writeText(text)
+                .then(function() {{
+                    console.log("Comment copied.");
+                }})
+                .catch(function(error) {{
+                    console.error("Copy failed:", error);
+                }});
         }}
         </script>
 
