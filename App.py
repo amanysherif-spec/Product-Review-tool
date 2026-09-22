@@ -1640,9 +1640,9 @@ with col2:
 # ------------------------------------------------------------
 
 if reset_button:
-    st.session_state["review_text"] = ""
     st.session_state["review_result"] = None
     st.session_state["copy_comment"] = ""
+    st.session_state["review_text"] = ""
     st.rerun()
 
 
