@@ -1027,6 +1027,7 @@ REVIEW_SCHEMA = {
 # GROQ CLIENT
 # ============================================================
 
+@st.cache_resource(show_spinner=False)
 def get_groq_client():
     api_key = os.getenv("GROQ_API_KEY")
 
@@ -1066,7 +1067,7 @@ def call_model(
                 "content": (
                     "You are a strict Noon Customer Review "
                     "moderation classifier. Follow the supplied "
-                    "guidelines exactly."
+                    "guidelines exactly. Return the required JSON only."
                 )
             },
             {
@@ -1132,123 +1133,118 @@ def validate_result(result):
 # ============================================================
 
 def apply_hard_rule(result, rule_id, language):
+    """
+    Create a seller-facing explanation that can be sent directly
+    without additional editing. The wording is tied to the relevant
+    Noon Customer Review guideline and explains why the review cannot remain.
+    """
 
     result = dict(result)
-
     result["decision"] = "NOT_ALLOWED"
     result["rule_id"] = rule_id
 
     if language == "Arabic":
-
         comments = {
             "1.1":
-                "التعليق يحتوي على محتوى ترويجي أو إعلاني، مثل الترويج لمنتج أو متجر أو استخدام كود خصم أو وسيلة تواصل بهدف الشراء. "
-                "هذا النوع من المحتوى لا يقتصر على تجربة العميل مع المنتج، ولذلك ووفقًا لإرشادات تقييمات العملاء في نون فهو غير مسموح.",
+                "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يتضمن محتوى ترويجيًا أو إعلانيًا، مثل الترويج لمنتج أو متجر، مشاركة كود خصم، أو توجيه العملاء إلى وسيلة شراء أو تواصل. "
+                "وفقًا للبند 1.1 من إرشادات تقييمات العملاء في نون، يجب أن يركز التقييم على تجربة العميل مع المنتج نفسه، ولذلك لا يمكن الإبقاء على هذا التقييم بصيغته الحالية.",
 
             "1.2":
-                "التعليق يحتوي على ألفاظ أو تعبيرات مسيئة أو غير لائقة أو مبتذلة. "
-                "هذا النوع من اللغة يخالف قاعدة المحتوى المسيء أو غير المناسب في إرشادات تقييمات العملاء في نون، ولذلك فإن التعليق غير مسموح.",
+                "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يتضمن ألفاظًا أو تعبيرات مسيئة أو مبتذلة أو غير لائقة أو غير مناسبة. "
+                "وفقًا للبند 1.2 من إرشادات تقييمات العملاء في نون، هذا النوع من المحتوى يخالف قواعد المحتوى المسيء أو غير المناسب، ولذلك لا يمكن الإبقاء على التقييم.",
 
             "1.3":
-                "التعليق يحتوي على خطاب كراهية أو تعبيرًا تمييزيًا تجاه فئة أو شخص. "
-                "هذا النوع من المحتوى يخالف إرشادات المجتمع الخاصة بخطاب الكراهية والتمييز، ولذلك فإن التعليق غير مسموح.",
+                "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يتضمن خطاب كراهية أو محتوى تمييزيًا تجاه شخص أو فئة. "
+                "وفقًا للبند 1.3 من إرشادات تقييمات العملاء في نون، لا يُسمح بالمحتوى الذي يتضمن كراهية أو تمييزًا، ولذلك لا يمكن الإبقاء على هذا التقييم.",
 
             "1.4":
-                "التعليق يتضمن معلومات شخصية أو حساسة، مثل بيانات التواصل أو معلومات يمكن استخدامها للتعرف على شخص بشكل مباشر. "
-                "مشاركة هذا النوع من المعلومات لا تتوافق مع إرشادات تقييمات العملاء في نون، ولذلك فإن التعليق غير مسموح.",
+                "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يتضمن معلومات شخصية أو حساسة، مثل رقم الهاتف أو البريد الإلكتروني أو عنوان أو بيانات يمكن استخدامها للتعرف على شخص. "
+                "وفقًا للبند 1.4 من إرشادات تقييمات العملاء في نون، لا يُسمح بمشاركة هذا النوع من المعلومات داخل تقييم المنتج، ولذلك لا يمكن الإبقاء على التقييم.",
 
             "2.1":
-                "التعليق يقدم ملاحظات عن البائع أو أدائه أو سمعته بدلًا من التركيز على تجربة العميل مع المنتج نفسه. "
-                "وفقًا لإرشادات تقييمات العملاء في نون، تعليقات أداء البائع أو سمعته غير مسموح بها.",
+                "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يقدم ملاحظات عن البائع أو أدائه أو سمعته بدلًا من التركيز على تجربة العميل مع المنتج نفسه. "
+                "وفقًا للبند 2.1 من إرشادات تقييمات العملاء في نون، تعليقات أداء البائع أو سمعته لا تُعد محتوى مناسبًا لتقييم المنتج، ولذلك لا يمكن الإبقاء على التقييم.",
 
             "2.2":
-                "التعليق يتحدث عن تجربة الطلب أو الإرجاع، مثل إلغاء الطلب أو رفض الإرجاع أو مشكلة في استرداد المبلغ. "
-                "هذا النوع من الملاحظات يتعلق بتجربة الطلب أو الإرجاع وليس بتجربة المنتج نفسه، ولذلك فهو غير مسموح وفقًا للإرشادات.",
+                "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يتناول تجربة الطلب أو الإرجاع، مثل إلغاء الطلب أو رفض الإرجاع أو مشكلة في استرداد المبلغ. "
+                "وفقًا للبند 2.2 من إرشادات تقييمات العملاء في نون، يجب أن يركز التقييم على تجربة المنتج وليس على إجراءات الطلب أو الإرجاع، ولذلك لا يمكن الإبقاء على هذا التقييم.",
 
             "2.3":
-                "التعليق يتحدث عن الشحن أو التغليف أو سرعة التوصيل أو تأخر وصول الطلب. "
-                "هذه الملاحظات تتعلق بعملية التوصيل والشحن وليس بتجربة استخدام المنتج، ولذلك فهي غير مسموح بها وفقًا لإرشادات تقييمات العملاء في نون.",
+                "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يتناول الشحن أو التغليف أو سرعة التوصيل أو تأخر وصول الطلب. "
+                "وفقًا للبند 2.3 من إرشادات تقييمات العملاء في نون، هذه الملاحظات تتعلق بعملية التوصيل وليس بتجربة استخدام المنتج، ولذلك لا يمكن الإبقاء على التقييم.",
 
             "2.4":
-                "التعليق يذكر أن المنتج وصل تالفًا أو مكسورًا أو أن هناك جزءًا أو عنصرًا مفقودًا منه. "
-                "هذه الملاحظة تتعلق بحالة المنتج أو اكتمال محتويات الطلب عند الاستلام، ووفقًا لإرشادات تقييمات العملاء في نون فإن هذا النوع من التعليقات غير مسموح.",
+                "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يذكر أن المنتج وصل تالفًا أو مكسورًا أو أن جزءًا أو عنصرًا من المنتج مفقود. "
+                "وفقًا للبند 2.4 من إرشادات تقييمات العملاء في نون، تعليقات التلف أو العناصر المفقودة تتعلق بحالة أو اكتمال الطلب عند الاستلام وليست بتجربة استخدام المنتج، ولذلك لا يمكن الإبقاء على التقييم.",
 
             "3.1":
-                "التعليق يذكر أن العميل وجد نفس المنتج بسعر أرخص في مكان آخر، أي أنه يقارن سعر المنتج بسعره لدى متجر أو جهة أخرى بدلًا من التركيز على تجربة استخدام المنتج. "
-                "ووفقًا لإرشادات تقييمات العملاء في نون، التعليقات التي تشير إلى العثور على المنتج بسعر أرخص في مكان آخر غير مسموح بها.",
+                "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يذكر أن العميل وجد نفس المنتج بسعر أرخص في مكان آخر أو يقارن سعر المنتج بسعر جهة أخرى. "
+                "وفقًا للبند 3.1 من إرشادات تقييمات العملاء في نون، التعليقات التي تشير إلى العثور على المنتج بسعر أرخص في مكان آخر غير مسموح بها، ولذلك لا يمكن الإبقاء على التقييم.",
 
             "3.2":
-                "التعليق يتحدث عن توفر المنتج أو حالة المخزون، مثل الإشارة إلى أن المنتج غير متوفر أو السؤال عن موعد توفره مرة أخرى. "
-                "هذا النوع من التعليقات يتعلق بحالة المخزون وليس بتجربة العميل مع المنتج نفسه، ولذلك ووفقًا لإرشادات تقييمات العملاء في نون فهو غير مسموح.",
+                "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يتناول توفر المنتج أو حالة المخزون، مثل الإشارة إلى أن المنتج غير متوفر أو السؤال عن موعد توفره مرة أخرى. "
+                "وفقًا للبند 3.2 من إرشادات تقييمات العملاء في نون، يجب ألا يتناول تقييم المنتج حالة المخزون أو توفره، ولذلك لا يمكن الإبقاء على التقييم.",
 
             "4.1":
-                "التعليق يشير إلى وجود علاقة أو تعارض مصالح بين كاتب التقييم والبائع أو الموظف أو المنافس أو جهة مرتبطة بالمنتج. "
-                "هذا النوع من التقييمات لا يُعد تجربة مستقلة للعميل، ولذلك فهو غير مسموح وفقًا لقاعدة تعارض المصالح ومكافحة التلاعب بالتقييمات.",
+                "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يتضمن تعارضًا في المصالح أو يشير إلى علاقة بين كاتب التقييم والبائع أو الموظف أو المنافس أو جهة مرتبطة بالمنتج. "
+                "وفقًا للبند 4.1 من إرشادات تقييمات العملاء في نون، يجب أن يكون التقييم تجربة عميل مستقلة، ولذلك لا يمكن الإبقاء على هذا التقييم.",
 
             "4.2":
-                "التعليق يشير إلى أن التقييم كُتب مقابل مقابل مادي أو منتج مجاني أو حافز مالي أو منفعة أخرى. "
-                "التقييمات التي يتم الحصول عليها مقابل تعويض أو حافز لا تتوافق مع إرشادات تقييمات العملاء في نون، ولذلك فهي غير مسموح بها.",
+                "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يشير إلى كتابة التقييم مقابل مقابل مادي أو منتج مجاني أو حافز مالي أو منفعة أخرى. "
+                "وفقًا للبند 4.2 من إرشادات تقييمات العملاء في نون، التقييمات المنشورة مقابل تعويض أو حافز غير مسموح بها، ولذلك لا يمكن الإبقاء على التقييم.",
         }
-
     else:
-
         comments = {
             "1.1":
-                "The review contains promotional or advertising content, such as promoting a product or store, using a discount code, or directing customers to a purchasing/contact method. "
-                "This goes beyond sharing a personal product experience and is not allowed under the Noon Customer Review guidelines.",
+                "Regarding the submitted review, please note that it is not allowed because it contains promotional or advertising content, such as promoting a product or store, sharing a discount code, or directing customers to a purchasing or contact method. "
+                "Under Section 1.1 of the Noon Customer Review guidelines, reviews should focus on the customer's experience with the product itself, so this review cannot remain in its current form.",
 
             "1.2":
-                "The review contains offensive, abusive, inappropriate, vulgar, or distasteful language. "
-                "This violates the guideline covering offensive or inappropriate content, so the review is not allowed.",
+                "Regarding the submitted review, please note that it is not allowed because it contains offensive, abusive, vulgar, inappropriate, or distasteful language. "
+                "Under Section 1.2 of the Noon Customer Review guidelines, this type of content violates the rule covering offensive or inappropriate language, so the review cannot remain.",
 
             "1.3":
-                "The review contains hate speech or discriminatory language directed at a person or group. "
-                "This violates the community guideline covering hate speech and discrimination, so the review is not allowed.",
+                "Regarding the submitted review, please note that it is not allowed because it contains hate speech or discriminatory content directed at a person or group. "
+                "Under Section 1.3 of the Noon Customer Review guidelines, hate speech and discriminatory content are not allowed, so the review cannot remain.",
 
             "1.4":
-                "The review includes personal or sensitive information, such as contact details or information that can directly identify a person. "
-                "Sharing this type of information is not allowed under the Noon Customer Review guidelines.",
+                "Regarding the submitted review, please note that it is not allowed because it contains personal or sensitive information, such as a phone number, email address, physical address, or information that can directly identify a person. "
+                "Under Section 1.4 of the Noon Customer Review guidelines, this type of information should not be included in a product review, so the review cannot remain.",
 
             "2.1":
-                "The review provides feedback about the seller's performance or reputation rather than focusing on the customer's experience with the product itself. "
-                "Seller performance or reputation feedback is not allowed under the Noon Customer Review guidelines.",
+                "Regarding the submitted review, please note that it is not allowed because it provides feedback about the seller's performance or reputation instead of focusing on the customer's experience with the product itself. "
+                "Under Section 2.1 of the Noon Customer Review guidelines, seller performance or reputation feedback is not permitted in a product review, so the review cannot remain.",
 
             "2.2":
-                "The review discusses the ordering or return experience, such as an order cancellation, a rejected return, or a refund issue. "
-                "This concerns the order or return process rather than the customer's experience with the product itself, so it is not allowed under the guidelines.",
+                "Regarding the submitted review, please note that it is not allowed because it discusses the ordering or return experience, such as an order cancellation, rejected return, or refund issue. "
+                "Under Section 2.2 of the Noon Customer Review guidelines, reviews should focus on the product experience rather than the order or return process, so the review cannot remain.",
 
             "2.3":
-                "The review discusses shipping, packaging, delivery speed, or a delayed delivery. "
-                "This feedback concerns the delivery process rather than the product experience itself, so it is not allowed under the Noon Customer Review guidelines.",
+                "Regarding the submitted review, please note that it is not allowed because it discusses shipping, packaging, delivery speed, or a delayed delivery. "
+                "Under Section 2.3 of the Noon Customer Review guidelines, these comments concern the delivery process rather than the product experience, so the review cannot remain.",
 
             "2.4":
-                "The review reports that the product arrived damaged, broken, or with a missing item, part, or accessory. "
-                "This feedback concerns the condition or completeness of the delivered order rather than the normal use or performance of the product. "
-                "Under the Noon Customer Review guidelines, this type of damage or missing-item complaint is not allowed.",
+                "Regarding the submitted review, please note that it is not allowed because it reports that the product arrived damaged or broken, or that an item, part, or accessory was missing. "
+                "Under Section 2.4 of the Noon Customer Review guidelines, damage and missing-item comments concern the condition or completeness of the delivered order rather than the normal product experience, so the review cannot remain.",
 
             "3.1":
-                "The review states that the customer found the same product at a cheaper price elsewhere. This is a comment comparing the product's price with another store or source rather than describing the product experience itself. "
-                "Under the Noon Customer Review guidelines, comments about finding the product cheaper elsewhere fall under the pricing rule and are not allowed.",
+                "Regarding the submitted review, please note that it is not allowed because it states that the customer found the same product cheaper elsewhere or compares the product's price with another seller or source. "
+                "Under Section 3.1 of the Noon Customer Review guidelines, comments about finding the product cheaper elsewhere are not allowed, so the review cannot remain.",
 
             "3.2":
-                "The review refers to the product's availability or stock status, such as saying that the item is unavailable or asking when it will be back in stock. "
-                "This type of comment focuses on stock availability rather than the customer's experience with the product itself. "
-                "Under the Noon Customer Review guidelines, availability and stock-status comments are not allowed.",
+                "Regarding the submitted review, please note that it is not allowed because it discusses the product's stock status or availability, such as saying that the item is unavailable or asking when it will be available again. "
+                "Under Section 3.2 of the Noon Customer Review guidelines, stock and availability comments are not allowed in a product review, so the review cannot remain.",
 
             "4.1":
-                "The review indicates a conflict of interest involving the reviewer and the seller, employee, competitor, or another party connected to the product. "
-                "This means the review is not an independent customer experience and is not allowed under the conflict-of-interest and anti-manipulation guideline.",
+                "Regarding the submitted review, please note that it is not allowed because it indicates a conflict of interest or a relationship between the reviewer and the seller, employee, competitor, or another party connected to the product. "
+                "Under Section 4.1 of the Noon Customer Review guidelines, reviews must represent an independent customer experience, so this review cannot remain.",
 
             "4.2":
-                "The review indicates that it was posted in exchange for compensation, a free product, financial incentive, or another benefit. "
-                "Reviews submitted in exchange for compensation or an incentive are not allowed under the Noon Customer Review guidelines.",
+                "Regarding the submitted review, please note that it is not allowed because it indicates that the review was submitted in exchange for compensation, a free product, a financial incentive, or another benefit. "
+                "Under Section 4.2 of the Noon Customer Review guidelines, reviews submitted in exchange for compensation or incentives are not allowed, so the review cannot remain.",
         }
 
-    result["comment"] = comments.get(
-        rule_id,
-        result.get("comment", "")
-    )
-
+    result["comment"] = comments.get(rule_id, result.get("comment", ""))
     return result
 
 
@@ -1259,20 +1255,18 @@ def apply_hard_rule(result, rule_id, language):
 def apply_offensive_rule(result, language):
 
     result = dict(result)
-
     result["decision"] = "NOT_ALLOWED"
     result["rule_id"] = "1.2"
 
     if language == "Arabic":
         result["comment"] = (
-            "التعليق يحتوي على ألفاظ أو تعبيرات مسيئة أو غير لائقة أو مبتذلة، "
-            "وهذا يتعارض مع قاعدة المحتوى المسيء أو غير المناسب في إرشادات تقييمات العملاء. "
-            "لذلك فإن التعليق غير مسموح."
+            "بخصوص التقييم المذكور، يرجى العلم بأنه غير مسموح لأنه يتضمن ألفاظًا أو تعبيرات مسيئة أو مبتذلة أو غير لائقة أو غير مناسبة. "
+            "وفقًا للبند 1.2 من إرشادات تقييمات العملاء في نون، يجب ألا تتضمن تقييمات المنتجات هذا النوع من المحتوى، ولذلك لا يمكن الإبقاء على التقييم."
         )
     else:
         result["comment"] = (
-            "The review contains offensive, abusive, inappropriate, vulgar, or distasteful language. "
-            "This violates the guideline covering offensive or inappropriate content, so the review is not allowed."
+            "Regarding the submitted review, please note that it is not allowed because it contains offensive, abusive, vulgar, inappropriate, or distasteful language. "
+            "Under Section 1.2 of the Noon Customer Review guidelines, this type of content is not permitted in product reviews, so the review cannot remain."
         )
 
     return result
@@ -1285,24 +1279,21 @@ def apply_offensive_rule(result, language):
 def apply_allowed_rule(result, review, language):
 
     result = dict(result)
-
     result["decision"] = "ALLOWED"
-
     closest_rule = get_closest_rule(review)
-
     result["rule_id"] = closest_rule
 
     if language == "Arabic":
         result["comment"] = (
-            "مسموح: التعليق يعبر عن تجربة أو رأي شخصي متعلق بالمنتج، مثل جودة المنتج أو أدائه أو مدى رضا العميل عنه، "
-            "ولا يتضمن محتوى ترويجيًا أو ألفاظًا مسيئة أو معلومات شخصية أو تعليقات عن البائع أو الطلب أو الشحن أو توفر المنتج. "
-            "وبناءً على ذلك، لا توجد مخالفة لإرشادات تقييمات العملاء في نون، ويمكن الإبقاء على التعليق."
+            "بخصوص التقييم المذكور، يرجى العلم بأنه مسموح ويمكن الإبقاء عليه لأنه يركز على تجربة العميل الشخصية مع المنتج، مثل الجودة أو الأداء أو الفعالية أو الاستخدام أو مدى رضا العميل عن المنتج. "
+            "ولا يتضمن التقييم، وفقًا لإرشادات تقييمات العملاء في نون، محتوى ترويجيًا أو ألفاظًا مسيئة أو معلومات شخصية أو ملاحظات عن أداء البائع أو تجربة الطلب والإرجاع أو الشحن والتوصيل أو العثور على المنتج بسعر أرخص في مكان آخر أو حالة المخزون أو تعارض المصالح أو الحصول على مقابل. "
+            "وبالتالي لا توجد مخالفة واضحة لبنود الإزالة في Article الخاص بتقييمات العملاء، ويمكن الإبقاء على التقييم كما هو."
         )
     else:
         result["comment"] = (
-            "Allowed: the review expresses a personal opinion or personal experience about the product, such as its quality, performance, usefulness, or the customer's satisfaction. "
-            "It does not contain a violation related to promotional content, offensive language, seller/order/shipping feedback, pricing or availability, personal information, or conflicts of interest. "
-            "Therefore, the review does not violate the Noon Customer Review guidelines and can remain."
+            "Regarding the submitted review, please note that it is allowed and can remain because it focuses on the customer's personal experience with the product, such as its quality, performance, effectiveness, usefulness, or overall satisfaction. "
+            "Under the Noon Customer Review guidelines, the review does not contain promotional content, offensive language, personal information, seller-performance feedback, order or return feedback, shipping or delivery feedback, a cheaper-elsewhere price comparison, stock-availability feedback, a conflict of interest, or compensation-related content. "
+            "Therefore, there is no clear violation of the removal rules in the Customer Reviews Article, and the review can remain as submitted."
         )
 
     return result
@@ -1326,86 +1317,39 @@ First classifier result:
 Re-evaluate the review independently using the Noon Customer Review
 guidelines below.
 
-The most important distinction is:
+NORMAL PRODUCT CRITICISM = ALLOWED.
+Examples include bad product, poor quality, battery drains quickly,
+I don't like it, المنتج سيء, الجودة ضعيفة, البطارية بتخلص بسرعة.
 
-NORMAL PRODUCT CRITICISM = ALLOWED
+A genuinely offensive, abusive, vulgar, inappropriate, or distasteful
+expression = NOT_ALLOWED under 1.2.
 
-Examples:
-- bad product
-- poor quality
-- battery drains quickly
-- I don't like it
-- المنتج سيء
-- الجودة ضعيفة
-- البطارية بتخلص بسرعة
-- المنتج لم يعجبني
+Clear violations:
+1.1 promotional/advertising
+1.2 offensive/inappropriate language
+1.3 hate speech/discrimination
+1.4 personal/sensitive information
+2.1 seller performance/reputation
+2.2 ordering/return experience
+2.3 shipping/packaging/delivery
+2.4 damage/missing items
+3.1 finding the product cheaper elsewhere
+3.2 stock/availability
+4.1 conflict of interest
+4.2 compensation/financial incentive
 
-OFFENSIVE / VULGAR / ABUSIVE / DISTASTEFUL LANGUAGE = NOT_ALLOWED
-under 1.2.
+Do not mark a review NOT_ALLOWED merely because it is negative,
+disappointed, critical, or poorly written. A simple mention of buying
+or ordering the product is not an order violation. A simple mention of
+a seller is not a seller violation unless actual seller feedback is given.
+A simple mention of price is not a violation unless it compares the
+product with a cheaper alternative or clearly falls under the pricing rule.
+A general wish for more colors or sizes is not a stock violation.
 
-Examples:
-- disgusting product
-- this product is disgusting
-- fucking garbage
-- piece of shit
-- المنتج مقرف
-- المنتج زبالة
-- يا غبي
-- ألفاظ بذيئة أو مهينة
+If a clear Article violation exists, choose NOT_ALLOWED with the most
+direct rule. Otherwise choose ALLOWED.
 
-ALSO:
-
-Finding the product cheaper elsewhere = NOT_ALLOWED under 3.1.
-
-Stock/availability comments = NOT_ALLOWED under 3.2.
-
-Damage or missing item/part complaints = NOT_ALLOWED under 2.4.
-
-Promotional or advertising content = NOT_ALLOWED under 1.1.
-
-Seller performance/reputation feedback = NOT_ALLOWED under 2.1.
-
-Order or return experience feedback = NOT_ALLOWED under 2.2.
-
-Shipping, packaging, or delivery feedback = NOT_ALLOWED under 2.3.
-
-Personal or sensitive information = NOT_ALLOWED under 1.4.
-
-A review written because of a conflict of interest = NOT_ALLOWED under 4.1.
-
-A review written in exchange for compensation or a financial/free-product incentive = NOT_ALLOWED under 4.2.
-
-Hate speech or discriminatory content = NOT_ALLOWED under 1.3.
-
-Other rules:
-
-1.1 Promotional/advertising
-1.3 Hate/discrimination
-1.4 Personal/sensitive information
-2.1 Seller performance/reputation
-2.2 Order/return
-2.3 Shipping/packaging/delivery
-4.1 Conflict of interest
-4.2 Compensation/financial incentive
-
-FINAL DECISION RULE:
-
-- If any Article violation is clearly present, return NOT_ALLOWED and select the most directly applicable rule.
-- Do not classify a review as NOT_ALLOWED merely because it is negative, disappointed, critical, or poorly written.
-- A normal opinion about product quality, effectiveness, performance, usefulness, taste, size, fit, or satisfaction is ALLOWED unless it also contains a specific Article violation.
-- Do not treat a simple statement that the customer bought or ordered the product as an order-experience violation. The violation must concern the ordering/return experience itself.
-- Do not treat a simple mention of a seller as a violation unless the review actually provides feedback about the seller or seller performance.
-- Do not treat a simple mention of price as a violation unless the review specifically compares the product with a cheaper alternative elsewhere, or otherwise falls under the pricing rule.
-- Do not treat a general wish such as wanting more colors or sizes as a stock-availability violation.
-
-Return ONLY:
-
-{{
-  "decision": "ALLOWED" or "NOT_ALLOWED",
-  "rule_id": "1.1" through "4.2",
-  "comment": "short explanation"
-}}
-
+Return ONLY valid JSON with decision, rule_id, and comment.
 No markdown.
 No additional fields.
 """
@@ -1419,7 +1363,7 @@ No additional fields.
                 "role": "system",
                 "content": (
                     "You are a final quality-control reviewer. "
-                    "Be strict and follow the Noon guidelines."
+                    "Follow the Noon guidelines exactly and return JSON only."
                 )
             },
             {
@@ -1428,7 +1372,7 @@ No additional fields.
             }
         ],
         temperature=0,
-        reasoning_effort="high",
+        reasoning_effort="low",
         response_format={
             "type": "json_schema",
             "json_schema": {
@@ -1444,9 +1388,43 @@ No additional fields.
     if not content:
         raise ValueError("Empty adjudicator response.")
 
-    return validate_result(
-        json.loads(content)
-    )
+    return validate_result(json.loads(content))
+
+
+# ============================================================
+# SECOND REVIEW DECISION
+# ============================================================
+
+def should_run_second_review(review, first_result):
+    """
+    Keep the second AI pass only for cases where it adds value.
+    Deterministic Article violations are already final and do not need
+    another network request. Clear ALLOWED reviews also skip the second
+    pass unless they contain potentially ambiguous policy-related cues.
+    """
+
+    decision = first_result.get("decision")
+
+    # A NOT_ALLOWED AI result without a deterministic rule deserves
+    # verification to reduce false positives.
+    if decision == "NOT_ALLOWED":
+        return True
+
+    text = normalize_text(review)
+
+    ambiguous_cues = [
+        "seller", "البائع", "البايع",
+        "order", "ordered", "return", "refund", "طلب", "ارجاع", "استرجاع",
+        "delivery", "shipping", "package", "packaging", "توصيل", "شحن", "تغليف",
+        "price", "cheaper", "expensive", "سعر", "ارخص",
+        "stock", "available", "availability", "متوفر", "مخزون",
+        "promo", "discount", "coupon", "كود", "خصم",
+        "email", "phone", "address", "رقم", "ايميل", "عنوان",
+        "competitor", "employee", "manufacturer", "paid", "free product",
+        "منافس", "موظف", "مصنع", "مدفوع", "فلوس", "منتج مجاني"
+    ]
+
+    return any(cue in text for cue in ambiguous_cues)
 
 
 # ============================================================
@@ -1456,27 +1434,54 @@ No additional fields.
 def evaluate_with_reliability(review, language):
 
     # --------------------------------------------------------
-    # FIRST: DETERMINISTIC HARD RULES
+    # FIRST: DETERMINISTIC ARTICLE RULES
     # --------------------------------------------------------
+    # These rules are immediate and do not require an API call.
+    # This makes clear-cut violations much faster.
 
     hard_rule = detect_hard_rules(review)
 
-    # Additional high-confidence checks covering the remaining Article rules.
-    # Existing hard rules keep priority for price, availability, damage, and
-    # missing-item cases.
     if not hard_rule:
         hard_rule = detect_high_confidence_article_rule(review)
 
+    # Clear offensive language is also deterministic.
+    clear_offensive = detect_clear_offensive_language(review)
+
     # --------------------------------------------------------
-    # PRIMARY MODEL
+    # INSTANT FINALIZATION FOR CLEAR DETERMINISTIC CASES
     # --------------------------------------------------------
+    # No AI call is needed when the Article rule is unambiguous.
+
+    deterministic_rule = hard_rule
+
+    if clear_offensive and not deterministic_rule:
+        deterministic_rule = "1.2"
+
+    if deterministic_rule:
+        result = {
+            "decision": "NOT_ALLOWED",
+            "rule_id": deterministic_rule,
+            "comment": ""
+        }
+
+        return apply_hard_rule(
+            result,
+            deterministic_rule,
+            language
+        )
+
+    # --------------------------------------------------------
+    # ONE FAST AI CALL FOR NORMAL / AMBIGUOUS REVIEWS
+    # --------------------------------------------------------
+    # Low reasoning is intentionally used here because the prompt already
+    # contains the complete rule set and the final output is schema-limited.
 
     try:
         first_result = call_model(
             review,
             language,
             PRIMARY_MODEL,
-            reasoning_effort="medium"
+            reasoning_effort="low"
         )
 
         first_result = validate_result(first_result)
@@ -1488,7 +1493,7 @@ def evaluate_with_reliability(review, language):
                 review,
                 language,
                 FALLBACK_MODEL,
-                reasoning_effort="medium"
+                reasoning_effort="low"
             )
 
             first_result = validate_result(first_result)
@@ -1496,51 +1501,32 @@ def evaluate_with_reliability(review, language):
         except Exception:
             raise
 
+    # --------------------------------------------------------
+    # SECOND AI REVIEW ONLY WHEN IT ADDS VALUE
+    # --------------------------------------------------------
+    # This avoids paying the latency of two AI calls for every review.
+
+    if should_run_second_review(review, first_result):
+        try:
+            final_result = call_adjudicator(
+                review,
+                language,
+                first_result
+            )
+        except Exception:
+            final_result = first_result
+    else:
+        final_result = first_result
 
     # --------------------------------------------------------
-    # SECOND AI REVIEW
-    # --------------------------------------------------------
-
-    try:
-        second_result = call_adjudicator(
-            review,
-            language,
-            first_result
-        )
-
-    except Exception:
-        second_result = first_result
-
-
-    # --------------------------------------------------------
-    # OFFENSIVE LANGUAGE OVERRIDE
+    # FINAL DETERMINISTIC SAFETY CHECKS
     # --------------------------------------------------------
 
     if detect_clear_offensive_language(review):
         final_result = apply_offensive_rule(
-            second_result,
-            language
-        )
-
-    else:
-        final_result = second_result
-
-
-    # --------------------------------------------------------
-    # HARD RULE OVERRIDE
-    # --------------------------------------------------------
-
-    if hard_rule:
-        final_result = apply_hard_rule(
             final_result,
-            hard_rule,
             language
         )
-
-
-    # --------------------------------------------------------
-    # ALLOWED RULE NORMALIZATION
-    # --------------------------------------------------------
 
     if final_result["decision"] == "ALLOWED":
         final_result = apply_allowed_rule(
@@ -1549,14 +1535,7 @@ def evaluate_with_reliability(review, language):
             language
         )
 
-
-    # --------------------------------------------------------
-    # FINAL VALIDATION
-    # --------------------------------------------------------
-
-    final_result = validate_result(final_result)
-
-    return final_result
+    return validate_result(final_result)
 
 
 # ============================================================
