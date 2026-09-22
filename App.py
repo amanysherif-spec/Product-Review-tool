@@ -4,6 +4,7 @@ import streamlit.components.v1 as components
 import json
 import re
 import time
+import hashlib
 from groq import Groq
 
 
@@ -186,6 +187,56 @@ def contains_phrase(text, phrases):
     return False
 
 
+def contains_non_negated_phrase(text, phrases):
+    """
+    Detect a policy phrase unless the phrase is explicitly negated.
+
+    This prevents false positives such as:
+        - not broken
+        - not damaged
+        - no missing parts
+        - not cheaper elsewhere
+        - المنتج مش مكسور
+        - المنتج غير تالف
+    """
+
+    normalized = normalize_text(text)
+
+    negation_tokens = {
+        "not", "no", "never", "without", "isn't", "isnt",
+        "wasn't", "wasnt", "aren't", "arent", "dont", "don't",
+        "doesn't", "doesnt", "didn't", "didnt",
+        "مش", "موش", "مشا", "غير", "ليس", "ليست", "لم", "لن",
+        "ما", "مفيش", "مافيش", "بدون", "منغير", "من غير"
+    }
+
+    for phrase in phrases:
+        phrase_normalized = normalize_text(phrase)
+        if not phrase_normalized:
+            continue
+
+        start = 0
+        while True:
+            index = normalized.find(phrase_normalized, start)
+            if index == -1:
+                break
+
+            prefix = normalized[max(0, index - 40):index]
+            prefix_words = prefix.split()
+
+            # Check the few words immediately before the matched phrase.
+            # We deliberately keep this local to avoid suppressing a real
+            # violation because of an unrelated negation elsewhere.
+            recent_words = prefix_words[-5:]
+
+            if not any(token in negation_tokens for token in recent_words):
+                return True
+
+            start = index + len(phrase_normalized)
+
+    return False
+
+
 # ============================================================
 # HARD RULE DETECTION
 # ============================================================
@@ -210,8 +261,10 @@ def detect_hard_rules(review):
         "cheaper at another store",
         "lower price elsewhere",
         "lower price in another store",
-        "more expensive than",
-        "more expensive here",
+        "more expensive here than elsewhere",
+        "more expensive than another store",
+        "more expensive than elsewhere",
+        "more expensive here compared with another store",
         "same product cheaper",
         "same item cheaper",
 
@@ -227,7 +280,7 @@ def detect_hard_rules(review):
         "نفس المنتج بسعر ارخص",
     ]
 
-    if contains_phrase(text, price_phrases):
+    if contains_non_negated_phrase(text, price_phrases):
         return "3.1"
 
 
@@ -256,7 +309,7 @@ def detect_hard_rules(review):
         "متى يرجع للمخزون",
     ]
 
-    if contains_phrase(text, availability_phrases):
+    if contains_non_negated_phrase(text, availability_phrases):
         return "3.2"
 
 
@@ -286,7 +339,7 @@ def detect_hard_rules(review):
         "وصل تالف",
     ]
 
-    if contains_phrase(text, damage_phrases):
+    if contains_non_negated_phrase(text, damage_phrases):
         return "2.4"
 
 
@@ -316,7 +369,7 @@ def detect_hard_rules(review):
         "شي ناقص",
     ]
 
-    if contains_phrase(text, missing_phrases):
+    if contains_non_negated_phrase(text, missing_phrases):
         return "2.4"
 
 
@@ -973,6 +1026,19 @@ If there is no guideline violation, choose ALLOWED.
 
 Do not invent a violation simply because the review is negative.
 
+FINAL QUALITY CHECK BEFORE RETURNING THE JSON:
+1. Read the full review, including mixed Arabic/English wording.
+2. Identify the exact words or meaning that support the selected rule.
+3. The selected rule must be directly supported by the review itself.
+4. Do not infer seller, order, delivery, pricing, stock, compensation,
+   conflict-of-interest, or personal-information violations from unrelated
+   mentions of those topics.
+5. A normal opinion about product quality, taste, effectiveness, size,
+   value, usefulness, or satisfaction is ALLOWED unless a specific Article
+   violation is actually present.
+6. If the evidence does not clearly support a removal rule, choose ALLOWED.
+7. For NOT_ALLOWED, select the most directly applicable rule only.
+
 ============================================================
 OUTPUT
 ============================================================
@@ -1428,34 +1494,84 @@ def should_run_second_review(review, first_result):
 
 
 # ============================================================
-# RELIABLE EVALUATION
+# FINAL DETERMINISTIC ARTICLE CHECK
 # ============================================================
 
-def evaluate_with_reliability(review, language):
-
-    # --------------------------------------------------------
-    # FIRST: DETERMINISTIC ARTICLE RULES
-    # --------------------------------------------------------
-    # These rules are immediate and do not require an API call.
-    # This makes clear-cut violations much faster.
+def get_deterministic_article_rule(review):
+    """
+    Return a final, deterministic Article rule when the review contains
+    a high-confidence violation. These checks always have priority over AI.
+    """
 
     hard_rule = detect_hard_rules(review)
 
-    if not hard_rule:
-        hard_rule = detect_high_confidence_article_rule(review)
+    if hard_rule:
+        return hard_rule
 
-    # Clear offensive language is also deterministic.
-    clear_offensive = detect_clear_offensive_language(review)
+    article_rule = detect_high_confidence_article_rule(review)
+
+    if article_rule:
+        return article_rule
+
+    if detect_clear_offensive_language(review):
+        return "1.2"
+
+    return None
+
+
+# ============================================================
+# AI RESULT POLICY VALIDATION
+# ============================================================
+
+def validate_ai_result_against_article(review, result, language):
+    """
+    Validate the model result against the deterministic Article rules
+    before accepting it as final.
+
+    The AI may classify nuanced cases, but it can never override a
+    high-confidence deterministic Article violation.
+    """
+
+    result = validate_result(result)
+
+    deterministic_rule = get_deterministic_article_rule(review)
+
+    if deterministic_rule:
+        forced = {
+            "decision": "NOT_ALLOWED",
+            "rule_id": deterministic_rule,
+            "comment": ""
+        }
+
+        if deterministic_rule == "1.2":
+            return apply_offensive_rule(forced, language)
+
+        return apply_hard_rule(forced, deterministic_rule, language)
+
+    return result
+
+
+# ============================================================
+# RELIABLE EVALUATION
+# ============================================================
+
+@st.cache_data(show_spinner=False, ttl=86400)
+def evaluate_with_reliability(review, language):
 
     # --------------------------------------------------------
-    # INSTANT FINALIZATION FOR CLEAR DETERMINISTIC CASES
+    # EXACT REVIEW CACHE / SINGLE FINAL EVALUATION
     # --------------------------------------------------------
-    # No AI call is needed when the Article rule is unambiguous.
+    # The same normalized review + language is evaluated only once
+    # for 24 hours. Repeated Evaluate clicks therefore return the
+    # exact same stored result instead of calling the model again.
 
-    deterministic_rule = hard_rule
+    review = review.strip()
 
-    if clear_offensive and not deterministic_rule:
-        deterministic_rule = "1.2"
+    # --------------------------------------------------------
+    # DETERMINISTIC ARTICLE RULES FIRST
+    # --------------------------------------------------------
+
+    deterministic_rule = get_deterministic_article_rule(review)
 
     if deterministic_rule:
         result = {
@@ -1464,6 +1580,9 @@ def evaluate_with_reliability(review, language):
             "comment": ""
         }
 
+        if deterministic_rule == "1.2":
+            return apply_offensive_rule(result, language)
+
         return apply_hard_rule(
             result,
             deterministic_rule,
@@ -1471,62 +1590,56 @@ def evaluate_with_reliability(review, language):
         )
 
     # --------------------------------------------------------
-    # ONE FAST AI CALL FOR NORMAL / AMBIGUOUS REVIEWS
+    # ONE PRIMARY AI CLASSIFICATION
     # --------------------------------------------------------
-    # Low reasoning is intentionally used here because the prompt already
-    # contains the complete rule set and the final output is schema-limited.
+    # We intentionally do not run an independent second AI adjudicator.
+    # A second model decision can disagree with the first one and make
+    # the same review appear to change classification.
+    # The primary model gets a medium reasoning budget for accuracy,
+    # while the deterministic checks above remain the final authority
+    # for clear Article violations.
 
     try:
-        first_result = call_model(
+        final_result = call_model(
             review,
             language,
             PRIMARY_MODEL,
-            reasoning_effort="low"
+            reasoning_effort="medium"
         )
 
-        first_result = validate_result(first_result)
+        final_result = validate_result(final_result)
 
     except Exception:
 
         try:
-            first_result = call_model(
+            final_result = call_model(
                 review,
                 language,
                 FALLBACK_MODEL,
-                reasoning_effort="low"
+                reasoning_effort="medium"
             )
 
-            first_result = validate_result(first_result)
+            final_result = validate_result(final_result)
 
         except Exception:
             raise
 
     # --------------------------------------------------------
-    # SECOND AI REVIEW ONLY WHEN IT ADDS VALUE
+    # FINAL POLICY VALIDATION
     # --------------------------------------------------------
-    # This avoids paying the latency of two AI calls for every review.
+    # Re-run the deterministic Article engine after the AI call.
+    # This protects the final result if a clear violation was missed
+    # by the first pre-check or appears through normalized wording.
 
-    if should_run_second_review(review, first_result):
-        try:
-            final_result = call_adjudicator(
-                review,
-                language,
-                first_result
-            )
-        except Exception:
-            final_result = first_result
-    else:
-        final_result = first_result
+    final_result = validate_ai_result_against_article(
+        review,
+        final_result,
+        language
+    )
 
     # --------------------------------------------------------
-    # FINAL DETERMINISTIC SAFETY CHECKS
+    # NORMALIZE ALLOWED RESULT
     # --------------------------------------------------------
-
-    if detect_clear_offensive_language(review):
-        final_result = apply_offensive_rule(
-            final_result,
-            language
-        )
 
     if final_result["decision"] == "ALLOWED":
         final_result = apply_allowed_rule(
@@ -1551,10 +1664,29 @@ def evaluate_review(review, language):
 
     review = review.strip()
 
-    return evaluate_with_reliability(
+    # Session-level cache is an additional stability layer.
+    # Even if Streamlit invalidates its global cache, repeated clicks
+    # in the same session still return the exact same reviewed result.
+    normalized_review = normalize_text(review)
+    cache_key = hashlib.sha256(
+        f"{language}|{normalized_review}".encode("utf-8")
+    ).hexdigest()
+
+    evaluation_cache = st.session_state.setdefault(
+        "evaluation_cache", {}
+    )
+
+    if cache_key in evaluation_cache:
+        return evaluation_cache[cache_key]
+
+    result = evaluate_with_reliability(
         review,
         language
     )
+
+    evaluation_cache[cache_key] = result
+
+    return result
 
 
 # ============================================================
