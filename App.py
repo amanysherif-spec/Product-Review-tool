@@ -1561,6 +1561,16 @@ def evaluate_review(review, language):
 # UI
 # ============================================================
 
+# ------------------------------------------------------------
+# RESET CALLBACK
+# ------------------------------------------------------------
+
+def reset_review():
+    st.session_state["review_result"] = None
+    st.session_state["copy_comment"] = ""
+    st.session_state["review_text"] = ""
+
+
 st.title("Product Review Moderation Tool")
 
 
@@ -1631,19 +1641,9 @@ with col1:
 with col2:
     reset_button = st.button(
         "Reset",
-        use_container_width=True
+        use_container_width=True,
+        on_click=reset_review
     )
-
-
-# ------------------------------------------------------------
-# RESET
-# ------------------------------------------------------------
-
-if reset_button:
-    st.session_state["review_result"] = None
-    st.session_state["copy_comment"] = ""
-    st.session_state["review_text"] = ""
-    st.rerun()
 
 
 # ------------------------------------------------------------
