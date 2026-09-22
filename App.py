@@ -401,6 +401,252 @@ def detect_clear_offensive_language(review):
 
 
 # ============================================================
+# HIGH-CONFIDENCE ARTICLE RULE DETECTION
+# ============================================================
+
+def detect_high_confidence_article_rule(review):
+    """
+    Deterministic checks for additional high-confidence Article violations.
+
+    These checks intentionally use strong contextual phrases instead of
+    single generic words, because ordinary product reviews can mention
+    words such as "order", "price", or "seller" without necessarily
+    describing a prohibited experience.
+    """
+
+    text = normalize_text(review)
+
+    # --------------------------------------------------------
+    # 1.1 PROMOTIONAL / ADVERTISING CONTENT
+    # --------------------------------------------------------
+    promotional_phrases = [
+        "use my promo code",
+        "use my promo code",
+        "use my discount code",
+        "use this discount code",
+        "use this promo code",
+        "promo code",
+        "discount code",
+        "coupon code",
+        "coupon link",
+        "buy from my store",
+        "buy from our store",
+        "visit my store",
+        "visit our store",
+        "contact me for a discount",
+        "contact me to buy",
+        "dm me to buy",
+        "message me to buy",
+        "whatsapp me to buy",
+        "اتواصل معي للشراء",
+        "تواصل معي للشراء",
+        "استخدم كود الخصم",
+        "كود خصم",
+        "كود تخفيض",
+        "اشتروا من متجري",
+        "اشتري من متجري",
+        "تواصل معي للشراء",
+    ]
+
+    if contains_phrase(text, promotional_phrases):
+        return "1.1"
+
+    # Explicit external promotional/social links or handles.
+    if re.search(r"https?://|www\.|@[a-z0-9_.-]{3,}", text):
+        return "1.1"
+
+    # --------------------------------------------------------
+    # 1.4 PERSONAL / SENSITIVE INFORMATION
+    # --------------------------------------------------------
+    # High-confidence email address.
+    if re.search(r"\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b", text):
+        return "1.4"
+
+    personal_info_phrases = [
+        "my phone number is",
+        "my mobile number is",
+        "my email is",
+        "my address is",
+        "call me at",
+        "contact me at",
+        "رقم موبايلي",
+        "رقم تليفوني",
+        "رقم هاتفي",
+        "ايميلي هو",
+        "بريدي الالكتروني",
+        "عنواني هو",
+        "كلمني على الرقم",
+        "تواصل معي على الرقم",
+    ]
+
+    if contains_phrase(text, personal_info_phrases):
+        return "1.4"
+
+    # --------------------------------------------------------
+    # 4.2 COMPENSATION / FINANCIAL INCENTIVE
+    # --------------------------------------------------------
+    incentive_phrases = [
+        "paid to review",
+        "paid for this review",
+        "paid for my review",
+        "got paid to review",
+        "received money for this review",
+        "received money to review",
+        "given money to review",
+        "given a free product for review",
+        "received a free product for review",
+        "free product in exchange for a review",
+        "free item in exchange for a review",
+        "compensated for this review",
+        "compensated to review",
+        "in exchange for a positive review",
+        "in exchange for a good review",
+        "تم الدفع لي مقابل التقييم",
+        "اخذت فلوس مقابل التقييم",
+        "اخذت مال مقابل التقييم",
+        "حصلت على منتج مجاني مقابل التقييم",
+        "منتج مجاني مقابل التقييم",
+        "مقابل تقييم ايجابي",
+        "مقابل تقييم جيد",
+    ]
+
+    if contains_phrase(text, incentive_phrases):
+        return "4.2"
+
+    # --------------------------------------------------------
+    # 4.1 CONFLICT OF INTEREST / MANIPULATION
+    # --------------------------------------------------------
+    conflict_phrases = [
+        "i am the seller",
+        "i'm the seller",
+        "i work for the seller",
+        "i work for noon",
+        "i am a noon employee",
+        "i'm a noon employee",
+        "i am the manufacturer",
+        "i'm the manufacturer",
+        "i am the brand owner",
+        "i'm the brand owner",
+        "i am the competitor",
+        "i work for a competitor",
+        "my friend is the seller",
+        "my family member is the seller",
+        "my relative is the seller",
+        "انا البائع",
+        "انا موظف في نون",
+        "انا من شركة نون",
+        "انا صاحب البراند",
+        "انا صاحب العلامة التجارية",
+        "انا من المنافسين",
+        "البائع صديقي",
+        "البائع قريبي",
+    ]
+
+    if contains_phrase(text, conflict_phrases):
+        return "4.1"
+
+    # --------------------------------------------------------
+    # 2.1 SELLER PERFORMANCE / REPUTATION
+    # --------------------------------------------------------
+    seller_feedback_phrases = [
+        "seller was",
+        "seller is",
+        "seller sent",
+        "seller refused",
+        "seller did not",
+        "seller didn't",
+        "seller never",
+        "seller lied",
+        "seller was rude",
+        "seller was helpful",
+        "seller was unhelpful",
+        "bad seller",
+        "good seller",
+        "البائع كان",
+        "البائع هو",
+        "البائع ارسل",
+        "البائع رفض",
+        "البائع لم",
+        "البائع كذب",
+        "البائع وحش",
+        "البائع كويس",
+        "البائع سيء",
+        "البايع كان",
+        "البايع رفض",
+        "البايع وحش",
+        "البايع كويس",
+    ]
+
+    if contains_phrase(text, seller_feedback_phrases):
+        return "2.1"
+
+    # --------------------------------------------------------
+    # 2.2 ORDER / RETURN EXPERIENCE
+    # --------------------------------------------------------
+    order_experience_phrases = [
+        "my order was cancelled",
+        "my order was canceled",
+        "order was cancelled",
+        "order was canceled",
+        "my order was wrong",
+        "wrong order",
+        "wrong item in my order",
+        "i returned the product",
+        "i returned it",
+        "return was rejected",
+        "return was refused",
+        "refund was rejected",
+        "refund was refused",
+        "refund not received",
+        "did not receive my refund",
+        "لم يصلني الاسترداد",
+        "الاسترداد لم يصل",
+        "الطلب اتلغى",
+        "الطلب الغي",
+        "الطلب غلط",
+        "رجعت المنتج",
+        "رفضوا الارجاع",
+        "رفض الاسترجاع",
+    ]
+
+    if contains_phrase(text, order_experience_phrases):
+        return "2.2"
+
+    # --------------------------------------------------------
+    # 2.3 SHIPPING / PACKAGING / DELIVERY
+    # --------------------------------------------------------
+    shipping_experience_phrases = [
+        "delivery was late",
+        "late delivery",
+        "delivery was delayed",
+        "delivery took too long",
+        "shipping was late",
+        "shipping was delayed",
+        "package arrived late",
+        "packaging was poor",
+        "bad packaging",
+        "poor packaging",
+        "package was damaged",
+        "التوصيل اتاخر",
+        "التوصيل تأخر",
+        "التوصيل كان متاخر",
+        "التوصيل كان متأخر",
+        "الشحن اتاخر",
+        "الشحن تأخر",
+        "التغليف سيء",
+        "التغليف وحش",
+        "تغليف سيء",
+        "وصل متاخر",
+        "وصل متأخر",
+    ]
+
+    if contains_phrase(text, shipping_experience_phrases):
+        return "2.3"
+
+    return None
+
+
+# ============================================================
 # CLOSEST VALID RULE FOR ALLOWED REVIEWS
 # ============================================================
 
@@ -895,6 +1141,38 @@ def apply_hard_rule(result, rule_id, language):
     if language == "Arabic":
 
         comments = {
+            "1.1":
+                "التعليق يحتوي على محتوى ترويجي أو إعلاني، مثل الترويج لمنتج أو متجر أو استخدام كود خصم أو وسيلة تواصل بهدف الشراء. "
+                "هذا النوع من المحتوى لا يقتصر على تجربة العميل مع المنتج، ولذلك ووفقًا لإرشادات تقييمات العملاء في نون فهو غير مسموح.",
+
+            "1.2":
+                "التعليق يحتوي على ألفاظ أو تعبيرات مسيئة أو غير لائقة أو مبتذلة. "
+                "هذا النوع من اللغة يخالف قاعدة المحتوى المسيء أو غير المناسب في إرشادات تقييمات العملاء في نون، ولذلك فإن التعليق غير مسموح.",
+
+            "1.3":
+                "التعليق يحتوي على خطاب كراهية أو تعبيرًا تمييزيًا تجاه فئة أو شخص. "
+                "هذا النوع من المحتوى يخالف إرشادات المجتمع الخاصة بخطاب الكراهية والتمييز، ولذلك فإن التعليق غير مسموح.",
+
+            "1.4":
+                "التعليق يتضمن معلومات شخصية أو حساسة، مثل بيانات التواصل أو معلومات يمكن استخدامها للتعرف على شخص بشكل مباشر. "
+                "مشاركة هذا النوع من المعلومات لا تتوافق مع إرشادات تقييمات العملاء في نون، ولذلك فإن التعليق غير مسموح.",
+
+            "2.1":
+                "التعليق يقدم ملاحظات عن البائع أو أدائه أو سمعته بدلًا من التركيز على تجربة العميل مع المنتج نفسه. "
+                "وفقًا لإرشادات تقييمات العملاء في نون، تعليقات أداء البائع أو سمعته غير مسموح بها.",
+
+            "2.2":
+                "التعليق يتحدث عن تجربة الطلب أو الإرجاع، مثل إلغاء الطلب أو رفض الإرجاع أو مشكلة في استرداد المبلغ. "
+                "هذا النوع من الملاحظات يتعلق بتجربة الطلب أو الإرجاع وليس بتجربة المنتج نفسه، ولذلك فهو غير مسموح وفقًا للإرشادات.",
+
+            "2.3":
+                "التعليق يتحدث عن الشحن أو التغليف أو سرعة التوصيل أو تأخر وصول الطلب. "
+                "هذه الملاحظات تتعلق بعملية التوصيل والشحن وليس بتجربة استخدام المنتج، ولذلك فهي غير مسموح بها وفقًا لإرشادات تقييمات العملاء في نون.",
+
+            "2.4":
+                "التعليق يذكر أن المنتج وصل تالفًا أو مكسورًا أو أن هناك جزءًا أو عنصرًا مفقودًا منه. "
+                "هذه الملاحظة تتعلق بحالة المنتج أو اكتمال محتويات الطلب عند الاستلام، ووفقًا لإرشادات تقييمات العملاء في نون فإن هذا النوع من التعليقات غير مسموح.",
+
             "3.1":
                 "التعليق يذكر أن العميل وجد نفس المنتج بسعر أرخص في مكان آخر، أي أنه يقارن سعر المنتج بسعره لدى متجر أو جهة أخرى بدلًا من التركيز على تجربة استخدام المنتج. "
                 "ووفقًا لإرشادات تقييمات العملاء في نون، التعليقات التي تشير إلى العثور على المنتج بسعر أرخص في مكان آخر غير مسموح بها.",
@@ -903,14 +1181,51 @@ def apply_hard_rule(result, rule_id, language):
                 "التعليق يتحدث عن توفر المنتج أو حالة المخزون، مثل الإشارة إلى أن المنتج غير متوفر أو السؤال عن موعد توفره مرة أخرى. "
                 "هذا النوع من التعليقات يتعلق بحالة المخزون وليس بتجربة العميل مع المنتج نفسه، ولذلك ووفقًا لإرشادات تقييمات العملاء في نون فهو غير مسموح.",
 
-            "2.4":
-                "التعليق يذكر أن المنتج وصل تالفًا أو مكسورًا أو أن هناك جزءًا أو عنصرًا مفقودًا منه. "
-                "هذه الملاحظة تتعلق بحالة المنتج أو اكتمال محتويات الطلب عند الاستلام، ووفقًا لإرشادات تقييمات العملاء في نون فإن هذا النوع من التعليقات غير مسموح.",
+            "4.1":
+                "التعليق يشير إلى وجود علاقة أو تعارض مصالح بين كاتب التقييم والبائع أو الموظف أو المنافس أو جهة مرتبطة بالمنتج. "
+                "هذا النوع من التقييمات لا يُعد تجربة مستقلة للعميل، ولذلك فهو غير مسموح وفقًا لقاعدة تعارض المصالح ومكافحة التلاعب بالتقييمات.",
+
+            "4.2":
+                "التعليق يشير إلى أن التقييم كُتب مقابل مقابل مادي أو منتج مجاني أو حافز مالي أو منفعة أخرى. "
+                "التقييمات التي يتم الحصول عليها مقابل تعويض أو حافز لا تتوافق مع إرشادات تقييمات العملاء في نون، ولذلك فهي غير مسموح بها.",
         }
 
     else:
 
         comments = {
+            "1.1":
+                "The review contains promotional or advertising content, such as promoting a product or store, using a discount code, or directing customers to a purchasing/contact method. "
+                "This goes beyond sharing a personal product experience and is not allowed under the Noon Customer Review guidelines.",
+
+            "1.2":
+                "The review contains offensive, abusive, inappropriate, vulgar, or distasteful language. "
+                "This violates the guideline covering offensive or inappropriate content, so the review is not allowed.",
+
+            "1.3":
+                "The review contains hate speech or discriminatory language directed at a person or group. "
+                "This violates the community guideline covering hate speech and discrimination, so the review is not allowed.",
+
+            "1.4":
+                "The review includes personal or sensitive information, such as contact details or information that can directly identify a person. "
+                "Sharing this type of information is not allowed under the Noon Customer Review guidelines.",
+
+            "2.1":
+                "The review provides feedback about the seller's performance or reputation rather than focusing on the customer's experience with the product itself. "
+                "Seller performance or reputation feedback is not allowed under the Noon Customer Review guidelines.",
+
+            "2.2":
+                "The review discusses the ordering or return experience, such as an order cancellation, a rejected return, or a refund issue. "
+                "This concerns the order or return process rather than the customer's experience with the product itself, so it is not allowed under the guidelines.",
+
+            "2.3":
+                "The review discusses shipping, packaging, delivery speed, or a delayed delivery. "
+                "This feedback concerns the delivery process rather than the product experience itself, so it is not allowed under the Noon Customer Review guidelines.",
+
+            "2.4":
+                "The review reports that the product arrived damaged, broken, or with a missing item, part, or accessory. "
+                "This feedback concerns the condition or completeness of the delivered order rather than the normal use or performance of the product. "
+                "Under the Noon Customer Review guidelines, this type of damage or missing-item complaint is not allowed.",
+
             "3.1":
                 "The review states that the customer found the same product at a cheaper price elsewhere. This is a comment comparing the product's price with another store or source rather than describing the product experience itself. "
                 "Under the Noon Customer Review guidelines, comments about finding the product cheaper elsewhere fall under the pricing rule and are not allowed.",
@@ -920,10 +1235,13 @@ def apply_hard_rule(result, rule_id, language):
                 "This type of comment focuses on stock availability rather than the customer's experience with the product itself. "
                 "Under the Noon Customer Review guidelines, availability and stock-status comments are not allowed.",
 
-            "2.4":
-                "The review reports that the product arrived damaged, broken, or with a missing item, part, or accessory. "
-                "This feedback concerns the condition or completeness of the delivered order rather than the normal use or performance of the product. "
-                "Under the Noon Customer Review guidelines, this type of damage or missing-item complaint is not allowed.",
+            "4.1":
+                "The review indicates a conflict of interest involving the reviewer and the seller, employee, competitor, or another party connected to the product. "
+                "This means the review is not an independent customer experience and is not allowed under the conflict-of-interest and anti-manipulation guideline.",
+
+            "4.2":
+                "The review indicates that it was posted in exchange for compensation, a free product, financial incentive, or another benefit. "
+                "Reviews submitted in exchange for compensation or an incentive are not allowed under the Noon Customer Review guidelines.",
         }
 
     result["comment"] = comments.get(
@@ -1043,6 +1361,22 @@ Stock/availability comments = NOT_ALLOWED under 3.2.
 
 Damage or missing item/part complaints = NOT_ALLOWED under 2.4.
 
+Promotional or advertising content = NOT_ALLOWED under 1.1.
+
+Seller performance/reputation feedback = NOT_ALLOWED under 2.1.
+
+Order or return experience feedback = NOT_ALLOWED under 2.2.
+
+Shipping, packaging, or delivery feedback = NOT_ALLOWED under 2.3.
+
+Personal or sensitive information = NOT_ALLOWED under 1.4.
+
+A review written because of a conflict of interest = NOT_ALLOWED under 4.1.
+
+A review written in exchange for compensation or a financial/free-product incentive = NOT_ALLOWED under 4.2.
+
+Hate speech or discriminatory content = NOT_ALLOWED under 1.3.
+
 Other rules:
 
 1.1 Promotional/advertising
@@ -1053,6 +1387,16 @@ Other rules:
 2.3 Shipping/packaging/delivery
 4.1 Conflict of interest
 4.2 Compensation/financial incentive
+
+FINAL DECISION RULE:
+
+- If any Article violation is clearly present, return NOT_ALLOWED and select the most directly applicable rule.
+- Do not classify a review as NOT_ALLOWED merely because it is negative, disappointed, critical, or poorly written.
+- A normal opinion about product quality, effectiveness, performance, usefulness, taste, size, fit, or satisfaction is ALLOWED unless it also contains a specific Article violation.
+- Do not treat a simple statement that the customer bought or ordered the product as an order-experience violation. The violation must concern the ordering/return experience itself.
+- Do not treat a simple mention of a seller as a violation unless the review actually provides feedback about the seller or seller performance.
+- Do not treat a simple mention of price as a violation unless the review specifically compares the product with a cheaper alternative elsewhere, or otherwise falls under the pricing rule.
+- Do not treat a general wish such as wanting more colors or sizes as a stock-availability violation.
 
 Return ONLY:
 
@@ -1116,6 +1460,12 @@ def evaluate_with_reliability(review, language):
     # --------------------------------------------------------
 
     hard_rule = detect_hard_rules(review)
+
+    # Additional high-confidence checks covering the remaining Article rules.
+    # Existing hard rules keep priority for price, availability, damage, and
+    # missing-item cases.
+    if not hard_rule:
+        hard_rule = detect_high_confidence_article_rule(review)
 
     # --------------------------------------------------------
     # PRIMARY MODEL
