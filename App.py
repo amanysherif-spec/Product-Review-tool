@@ -229,7 +229,6 @@ def moderate_review(review, language="Arabic"):
         decision = res.get("decision", "ALLOWED")
         rule_id = res.get("rule_id", "2.4")
         
-        # Enrich comment with detailed template
         detailed_comment = generate_detailed_comment(decision, rule_id, review, language)
         
         return {
@@ -238,7 +237,6 @@ def moderate_review(review, language="Arabic"):
             "comment": detailed_comment
         }
     except Exception as e:
-        # Default fallback safely
         return {
             "decision": "ALLOWED",
             "rule_id": "2.4",
@@ -249,17 +247,39 @@ def moderate_review(review, language="Arabic"):
 # STREAMLIT UI
 # ============================================================
 
-st.title("🛡️ أداة مراجعة وتقييم مراجعات المنتجات (Noon Moderation)")
-st.write("أدخل تقييم العميل للحصول على قرار دقيق وملخص تفصيلي للسبب طبقاً لإرشادات نون.")
+# Title in English
+st.title("🛡️ Product Review Moderation Tool")
 
-lang = st.radio("لغة التوضيح / Explanation Language:", ["Arabic", "English"], horizontal=True)
-review_input = st.text_area("أدخل نص التقييم هنا / Enter Product Review:", height=120)
+# Explanation language selector
+lang = st.radio("Explanation Language:", ["Arabic", "English"], horizontal=True)
 
-if st.button("فحص التقييم / Moderate Review", type="primary"):
+# Session state management for review input text
+if "review_text" not in st.session_state:
+    st.session_state.review_text = ""
+
+review_input = st.text_area(
+    "Enter Product Review:", 
+    value=st.session_state.review_text,
+    key="review_area",
+    height=120
+)
+
+# Action buttons side by side
+col1, col2 = st.columns([1, 4])
+
+with col1:
+    eval_button = st.button("Evaluate Result", type="primary", use_container_width=True)
+
+with col2:
+    if st.button("Reset", use_container_width=False):
+        st.session_state.review_text = ""
+        st.rerun()
+
+if eval_button:
     if not review_input.strip():
-        st.warning("يرجى كتابة نص التقييم أولاً.")
+        st.warning("Please enter a review text first.")
     else:
-        with st.spinner("جاري تحليل التقييم بدقة..."):
+        with st.spinner("Evaluating review..."):
             result = moderate_review(review_input, language=lang)
             
             st.divider()
@@ -269,7 +289,7 @@ if st.button("فحص التقييم / Moderate Review", type="primary"):
                 st.error(f"❌ Decision: **{result['decision']}**")
                 
             st.info(f"📌 **Rule Category**: {result['rule_id']} - {RULES[result['rule_id']]['rule']}")
-            st.write(f"📝 **التفاصيل والسبب / Explanation**:\n\n{result['comment']}")
+            st.write(f"📝 **Explanation**:\n\n{result['comment']}")
 
 # ============================================================
 # FIXED FOOTER WITH GUIDELINE LINK
@@ -300,8 +320,8 @@ footer_html = f"""
 }}
 </style>
 <div class="footer">
-    📄 للاطلاع على الشروط الكاملة: 
-    <a href="{GUIDELINE_URL}" target="_blank">Noon Customer Review Guidelines (إرشادات تقييمات نون)</a>
+    📄 For full policies: 
+    <a href="{GUIDELINE_URL}" target="_blank">Noon Customer Review Guidelines</a>
 </div>
 """
 
