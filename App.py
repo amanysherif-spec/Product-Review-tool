@@ -2395,6 +2395,27 @@ language = st.radio(
 )
 
 
+# ============================================================
+# GUIDELINES LINK
+# ============================================================
+
+st.markdown(
+    """
+    <div style="margin-top: 20px;">
+
+        <a
+            href="https://help.noon.com/portal/en/kb/articles/product-review-guidelines"
+            target="_blank"
+        >
+            Noon Customer Reviews Guidelines
+        </a>
+
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+
 # ------------------------------------------------------------
 # REVIEW INPUT
 # ------------------------------------------------------------
