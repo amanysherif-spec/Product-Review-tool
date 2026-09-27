@@ -329,17 +329,15 @@ def detect_hard_rules(review):
 
 def detect_clear_offensive_language(review):
     """
-    High-confidence offensive / vulgar / distasteful phrases.
+    Deterministic safety layer for Rule 1.2.
 
-    This is intentionally not a generic negative-word detector.
-    Normal criticism such as:
-        bad
-        poor quality
-        not useful
-        I don't like it
-    should remain allowed.
+    The Article says offensive, abusive, inappropriate, vulgar, or
+    distasteful language is not allowed.  This layer intentionally
+    catches clear offensive terms even when the AI might otherwise
+    interpret them as ordinary product criticism.
 
-    Contextual offensive language is primarily handled by the AI.
+    Normal criticism such as "bad", "poor quality", "not useful",
+    "I don't like it", "سيء", and "جودته ضعيفة" is NOT included.
     """
 
     text = normalize_text(review)
@@ -349,6 +347,23 @@ def detect_clear_offensive_language(review):
         # ----------------------------------------------------
         # ENGLISH - HIGH CONFIDENCE
         # ----------------------------------------------------
+
+        # Explicitly prohibited / distasteful terms requested for
+        # Article compliance, including single-word usage.
+        "disgusting",
+        "disgusted",
+        "gross",
+        "vulgar",
+        "fuck",
+        "fucking",
+        "shit",
+        "bullshit",
+        "asshole",
+        "bastard",
+        "idiot",
+        "stupid",
+        "moron",
+        "damn",
 
         "fucking garbage",
         "fucking shit",
@@ -372,6 +387,21 @@ def detect_clear_offensive_language(review):
         # ARABIC - HIGH CONFIDENCE
         # ----------------------------------------------------
 
+        # Clear vulgar / insulting / distasteful terms.
+        "مقرف",
+        "قرف",
+        "زباله",
+        "زفت",
+        "وسخ",
+        "خرا",
+        "غبي",
+        "احمق",
+        "اهبل",
+        "تافه",
+        "حقير",
+        "قذر",
+        "سخيف",
+
         "المنتج مقرف",
         "منتج مقرف",
         "مقرف جدا",
@@ -394,7 +424,16 @@ def detect_clear_offensive_language(review):
     ]
 
     for phrase in offensive_phrases:
-        if normalize_text(phrase) in text:
+        normalized_phrase = normalize_text(phrase)
+        if not normalized_phrase:
+            continue
+
+        # Single terms are matched as words so a term cannot be found
+        # accidentally inside an unrelated longer word.
+        if " " not in normalized_phrase:
+            if re.search(r"(?<![\w])" + re.escape(normalized_phrase) + r"(?![\w])", text):
+                return True
+        elif normalized_phrase in text:
             return True
 
     return False
@@ -790,7 +829,8 @@ def build_prompt(review, language):
 You are a strict Noon Customer Review moderation classifier.
 
 Your job is to determine whether the customer review is ALLOWED
-or NOT_ALLOWED according to the Noon Customer Reviews Article.
+or NOT_ALLOWED according ONLY to the Noon Customer Reviews Article.
+Do not invent, expand, or substitute policy rules.
 
 {language_instruction}
 
@@ -833,6 +873,12 @@ OFFENSIVE / INAPPROPRIATE LANGUAGE
 
 Any genuinely offensive, abusive, vulgar, inappropriate, or
 distasteful language must be classified as NOT_ALLOWED under 1.2.
+
+IMPORTANT: Words such as "disgusting", "gross", "vulgar", "fuck",
+"shit", and clear Arabic equivalents such as "مقرف", "قرف", "زبالة",
+"زفت", "وسخ", "خرا", or clear insults are NOT_ALLOWED under 1.2
+even when they are used to describe the product. Do not downgrade
+them to ordinary negative product feedback.
 
 This applies to both English and Arabic.
 
@@ -1324,19 +1370,19 @@ I don't like it, المنتج سيء, الجودة ضعيفة, البطارية 
 A genuinely offensive, abusive, vulgar, inappropriate, or distasteful
 expression = NOT_ALLOWED under 1.2.
 
-Clear violations:
-1.1 promotional/advertising
-1.2 offensive/inappropriate language
-1.3 hate speech/discrimination
-1.4 personal/sensitive information
-2.1 seller performance/reputation
-2.2 ordering/return experience
-2.3 shipping/packaging/delivery
-2.4 damage/missing items
-3.1 finding the product cheaper elsewhere
-3.2 stock/availability
-4.1 conflict of interest
-4.2 compensation/financial incentive
+Clear violations from the Article:
+1.1 Promotional or advertising content.
+1.2 Offensive, abusive, inappropriate, vulgar, or distasteful language.
+1.3 Hate speech or discriminatory remarks.
+1.4 Personal or sensitive information.
+2.1 Seller performance or reputation.
+2.2 Ordering or return experiences.
+2.3 Shipping, packaging, or delivery speed.
+2.4 Product damage or missing items.
+3.1 Finding the product cheaper elsewhere or competitor pricing.
+3.2 Stock status, out-of-stock items, or store-level availability.
+4.1 Written by seller, competitor, employee, friend, family member, or business partner.
+4.2 Posted in exchange for compensation or financial incentive.
 
 Do not mark a review NOT_ALLOWED merely because it is negative,
 disappointed, critical, or poorly written. A simple mention of buying
@@ -1558,6 +1604,24 @@ def evaluate_review(review, language):
 
 
 # ============================================================
+# SESSION STATE
+# ============================================================
+
+if "review_input" not in st.session_state:
+    st.session_state["review_input"] = ""
+
+if "review_result" not in st.session_state:
+    st.session_state["review_result"] = None
+
+
+def reset_tool():
+    """Clear the input and every displayed result."""
+    st.session_state["review_input"] = ""
+    st.session_state["review_result"] = None
+    st.session_state["copy_comment"] = ""
+
+
+# ============================================================
 # UI
 # ============================================================
 
@@ -1581,6 +1645,7 @@ language = st.radio(
 
 review = st.text_area(
     "Enter Customer Review:",
+    key="review_input",
     height=180,
     placeholder="Enter the customer review here..."
 )
@@ -1630,18 +1695,9 @@ with col1:
 with col2:
     reset_button = st.button(
         "Reset",
-        use_container_width=True
+        use_container_width=True,
+        on_click=reset_tool
     )
-
-
-# ------------------------------------------------------------
-# RESET
-# ------------------------------------------------------------
-
-if reset_button:
-    st.session_state["review_result"] = None
-    st.session_state["copy_comment"] = ""
-    st.rerun()
 
 
 # ------------------------------------------------------------
@@ -1773,7 +1829,7 @@ st.markdown(
     """
     <div style="margin-top: 20px;">
         <a
-            href="https://support.noon.partners/portal/en/kb/articles/customer-reviews"
+            href="https://help.noon.com/portal/en/kb/articles/product-review-guidelines"
             target="_blank"
         >
             Noon Customer Reviews Guidelines
