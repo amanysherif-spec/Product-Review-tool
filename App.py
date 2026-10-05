@@ -4,8 +4,6 @@ import streamlit.components.v1 as components
 import json
 import re
 import time
-import requests
-from html.parser import HTMLParser
 from openai import OpenAI
 
 
@@ -34,119 +32,59 @@ ARTICLE_URL = "https://help.noon.com/portal/en/kb/articles/product-review-guidel
 # NOON CUSTOMER REVIEW GUIDELINES
 # ============================================================
 
-# The full policy text is NOT hard-coded here. The tool fetches the
-# official Noon article below and uses it as the policy source of truth.
-# This small map is kept only for the result display / JSON validation.
 RULES = {
-    "1.1": {"section": "Community Guideline Violations", "rule": "Promotional or advertising content"},
-    "1.2": {"section": "Community Guideline Violations", "rule": "Offensive, abusive, or illegal language"},
-    "1.3": {"section": "Community Guideline Violations", "rule": "Hate speech or discriminatory remarks"},
-    "1.4": {"section": "Community Guideline Violations", "rule": "Personal or sensitive information"},
-    "2.1": {"section": "Seller, Order, or Shipping Feedback", "rule": "Seller performance or reputation"},
-    "2.2": {"section": "Seller, Order, or Shipping Feedback", "rule": "Ordering or return experiences"},
-    "2.3": {"section": "Seller, Order, or Shipping Feedback", "rule": "Shipping, packaging, or delivery speed"},
-    "2.4": {"section": "Seller, Order, or Shipping Feedback", "rule": "Product damage or missing items"},
-    "3.1": {"section": "Comments About Pricing or Availability", "rule": "Finding the product cheaper elsewhere"},
-    "3.2": {"section": "Comments About Pricing or Availability", "rule": "Stock status or availability"},
-    "4.1": {"section": "Conflicts of Interest & Anti-Manipulation", "rule": "Conflict of interest"},
-    "4.2": {"section": "Conflicts of Interest & Anti-Manipulation", "rule": "Compensation or financial incentive"},
+    "1.1": {
+        "section": "Community Guideline Violations",
+        "rule": "Promotional or advertising content",
+    },
+    "1.2": {
+        "section": "Community Guideline Violations",
+        "rule": "Offensive, abusive, inappropriate, vulgar, or distasteful language",
+    },
+    "1.3": {
+        "section": "Community Guideline Violations",
+        "rule": "Hate speech or discriminatory content",
+    },
+    "1.4": {
+        "section": "Community Guideline Violations",
+        "rule": "Personal or sensitive information",
+    },
+
+    "2.1": {
+        "section": "Seller, Order, or Shipping Feedback",
+        "rule": "Seller performance or reputation",
+    },
+    "2.2": {
+        "section": "Seller, Order, or Shipping Feedback",
+        "rule": "Ordering or return experience",
+    },
+    "2.3": {
+        "section": "Seller, Order, or Shipping Feedback",
+        "rule": "Shipping, packaging, or delivery",
+    },
+    "2.4": {
+        "section": "Seller, Order, or Shipping Feedback",
+        "rule": "Product damage or missing items",
+    },
+
+    "3.1": {
+        "section": "Comments About Pricing or Availability",
+        "rule": "Finding the product cheaper elsewhere",
+    },
+    "3.2": {
+        "section": "Comments About Pricing or Availability",
+        "rule": "Stock status or availability",
+    },
+
+    "4.1": {
+        "section": "Conflicts of Interest & Anti-Manipulation",
+        "rule": "Conflict of interest",
+    },
+    "4.2": {
+        "section": "Conflicts of Interest & Anti-Manipulation",
+        "rule": "Compensation or financial incentive",
+    },
 }
-
-
-# ============================================================
-# LIVE NOON ARTICLE LOADER
-# ============================================================
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def get_noon_guidelines():
-    """
-    Load the official Noon Product Review Guidelines.
-
-    Direct access is tried first. Some hosting environments may receive a
-    protected/empty HTML response from the Noon help center, so a text-reader
-    fallback is used only when direct access cannot be parsed. The policy
-    itself still comes from the official Noon article URL.
-    """
-
-    urls = [
-        ARTICLE_URL,
-        f"https://r.jina.ai/{ARTICLE_URL}",
-    ]
-
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 Chrome/154.0 Safari/537.36"
-        ),
-        "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.9",
-    }
-
-    errors = []
-
-    for url in urls:
-        try:
-            response = requests.get(
-                url,
-                timeout=15,
-                headers=headers,
-                allow_redirects=True,
-            )
-            response.raise_for_status()
-
-            raw = response.text or ""
-
-            # Jina returns clean text. For the direct Noon HTML response,
-            # strip tags without depending on BeautifulSoup.
-            if "r.jina.ai/" in url:
-                text = raw
-            else:
-                raw = re.sub(r"<script[^>]*>.*?</script>", " ", raw, flags=re.I | re.S)
-                raw = re.sub(r"<style[^>]*>.*?</style>", " ", raw, flags=re.I | re.S)
-                raw = re.sub(r"<noscript[^>]*>.*?</noscript>", " ", raw, flags=re.I | re.S)
-                raw = re.sub(r"<[^>]+>", " ", raw)
-                text = raw
-
-            # Decode common HTML entities and normalize whitespace.
-            import html as _html
-            text = _html.unescape(text)
-            text = re.sub(r"\s+", " ", text).strip()
-
-            required_markers = [
-                "Product Review Guidelines",
-                "Seller, Order, or Shipping Feedback",
-                "Comments About Pricing or Availability",
-                "Conflicts of Interest",
-            ]
-
-            if len(text) >= 1000 and all(marker.lower() in text.lower() for marker in required_markers):
-                return text[:50000]
-
-            errors.append(f"Invalid policy content from {url}")
-
-        except Exception as exc:
-            errors.append(f"{url}: {exc}")
-
-    raise RuntimeError(
-        "The Noon Product Review Guidelines could not be loaded. "
-        "Please try again. The tool will not classify a review without "
-        "a valid copy of the official policy."
-    )
-
-
-@st.cache_data(ttl=3600, show_spinner=False)
-def get_ai_policy_context():
-    """Return a compact, cached copy of the official policy for AI calls."""
-    article = get_noon_guidelines()
-    # Keep the complete policy when reasonably sized. If the Help Center
-    # response contains excessive navigation/footer text, cap it without
-    # changing the local classification logic below.
-    if len(article) <= 24000:
-        return article
-
-    # Preserve the beginning and ending of the official article. The local
-    # logic below remains authoritative for the specific rule mapping.
-    return article[:18000] + "\n\n[Non-policy page content omitted for speed]\n\n" + article[-6000:]
 
 
 # ============================================================
@@ -879,85 +817,233 @@ Understand the meaning and context of the review.
 # ============================================================
 
 def build_prompt(review, language):
+
     language_instruction = get_language_instruction(language)
-    article = get_ai_policy_context()
+
+    rules_text = "\n".join(
+        [
+            f"{rule_id}: {data['section']} -> {data['rule']}"
+            for rule_id, data in RULES.items()
+        ]
+    )
 
     return f"""
-You are a highly accurate Noon Customer Review moderation classifier.
+You are a strict Noon Customer Review moderation classifier.
 
-Your task is to read the ENTIRE customer review carefully, understand its
-meaning and context, and classify it according to the OFFICIAL Noon Product
-Review Guidelines supplied below. Do not classify based on isolated keywords.
-Understand what the customer is actually saying.
+Your job is to determine whether the customer review is ALLOWED
+or NOT_ALLOWED according ONLY to the Noon Customer Reviews Article.
+Do not invent, expand, or substitute policy rules.
 
 {language_instruction}
 
 ============================================================
-OFFICIAL NOON POLICY — LIVE SOURCE OF TRUTH
+NOON CUSTOMER REVIEW GUIDELINES — ARTICLE SOURCE OF TRUTH
 ============================================================
 
-The following text was fetched directly from the official Noon article:
-{article}
+The following policy is the only policy you may apply. The Article states
+that product reviews should focus solely on the customer's personal
+experience with the product purchased. The Article's prohibited categories
+are listed below. Do not add categories that are not supported by the Article.
+
+{rules_text}
+
+Article URL: https://help.noon.com/portal/en/kb/articles/product-review-guidelines
 
 ============================================================
-OUR CLASSIFICATION LOGIC
+IMPORTANT GENERAL PRINCIPLES
 ============================================================
 
-1. The review should focus on the customer's personal experience with the
-   PRODUCT itself.
+1. Reviews should focus solely on the customer's personal
+   experience with the product purchased.
 
-2. Normal negative product feedback is ALLOWED when it is genuinely about
-   the product. Examples: bad product, poor quality, ineffective, does not
-   work well, I don't like it, disappointed with the product, weak battery,
-   poor performance, or equivalent Arabic expressions.
+2. Normal product criticism is allowed.
 
-3. Do NOT mark a review NOT_ALLOWED just because it is negative, short,
-   emotional, mentions buying the product, mentions a seller, mentions a
-   price, or uses words such as "order" or "delivery". Determine the actual
-   subject of the statement.
+Examples of ALLOWED normal criticism:
 
-4. Seller performance/reputation, ordering/return experience, shipping/
-   packaging/delivery, and damage/missing-item complaints are NOT_ALLOWED
-   when those are the subject of the review rather than the product itself.
+- The product is bad.
+- The quality is poor.
+- The battery drains quickly.
+- The product is not useful.
+- I don't like the product.
+- The product disappointed me.
+- المنتج سيء
+- المنتج وحش
+- مش عاجبني المنتج
+- المنتج مش مفيد
+- البطارية بتخلص بسرعة
+- المنتج لم يعجبني
 
-5. "Found it cheaper elsewhere", cheaper at another store, competitor
-   pricing, or similar price-comparison feedback is ALWAYS NOT_ALLOWED under
-   3.1. Do not confuse this with an allowed value-for-money opinion such as
-   "great quality for the price".
-
-6. Stock or store-level availability statements are NOT_ALLOWED under 3.2.
-   A general product wish such as "hope it comes in more colors" is allowed.
-
-7. Promotional/advertising content, hate speech/discrimination, personal or
-   sensitive information, conflicts of interest, and compensation/incentives
-   are NOT_ALLOWED under the applicable official rule.
-
-8. Offensive/abusive/illegal language is NOT_ALLOWED under 1.2. Use context:
-   ordinary criticism such as "bad" or "poor quality" is NOT offensive, while
-   genuinely abusive, vulgar, insulting, or illegal language is.
-
-9. If a review contains multiple ideas, classify based on the clearest
-   applicable violation. Choose the MOST DIRECT rule.
-
-10. Never invent a violation. If the review is about the product and does
-    not clearly violate an official rule, choose ALLOWED.
+These are opinions about the product and are NOT automatically
+offensive language.
 
 ============================================================
-ACCURACY CHECK BEFORE ANSWERING
+OFFENSIVE / INAPPROPRIATE LANGUAGE
 ============================================================
 
-Before returning JSON, silently verify:
-- What is the review actually talking about?
-- Is the complaint about the PRODUCT or about the seller/order/delivery?
-- Is there a cheaper-elsewhere comparison?
-- Is there stock/availability feedback?
-- Is the wording genuinely offensive or merely negative product feedback?
-- Is there any promotion, personal information, discrimination, conflict of
-  interest, or compensation?
-- If none applies, keep it ALLOWED.
+Any genuinely offensive, abusive, vulgar, inappropriate, or
+distasteful language must be classified as NOT_ALLOWED under 1.2.
 
-Return ONLY valid JSON with decision, rule_id, and comment.
-No markdown. No additional fields.
+IMPORTANT: Words such as "disgusting", "gross", "vulgar", "fuck",
+"shit", and clear Arabic equivalents such as "مقرف", "قرف", "زبالة",
+"زفت", "وسخ", "خرا", or clear insults are NOT_ALLOWED under 1.2
+even when they are used to describe the product. Do not downgrade
+them to ordinary negative product feedback.
+
+This applies to both English and Arabic.
+
+Examples that MUST be NOT_ALLOWED:
+
+- disgusting product
+- This product is disgusting
+- The product is disgusting
+- What a disgusting product
+- fucking garbage
+- piece of shit
+- shit product
+- fuck this
+- fuck you
+
+Arabic examples that MUST be NOT_ALLOWED:
+
+- المنتج مقرف
+- منتج مقرف
+- المنتج زبالة
+- منتج زبالة
+- يا غبي
+- البائع غبي
+- المنتج وسخ
+- المنتج زفت
+- خرا
+- قرف
+- ألفاظ بذيئة أو مهينة أو غير لائقة
+
+IMPORTANT:
+
+Do not confuse ordinary negative product feedback with offensive
+language.
+
+For example:
+
+"The product is bad"
+"The quality is poor"
+"I don't like it"
+"المنتج سيء"
+
+must remain ALLOWED unless another guideline is violated.
+
+However, if the wording is genuinely vulgar, abusive, insulting,
+inappropriate, or distasteful according to normal language usage,
+classify it as NOT_ALLOWED under 1.2.
+
+Use contextual understanding, not only keyword matching.
+
+============================================================
+PRICING
+============================================================
+
+A review saying that the customer found the same product cheaper
+elsewhere is NOT_ALLOWED under 3.1.
+
+Examples:
+
+- Found it cheaper elsewhere
+- I found it cheaper in another store
+- Same product is cheaper somewhere else
+- لقيته ارخص في مكان تاني
+- وجدته بسعر ارخص
+
+These MUST be NOT_ALLOWED.
+
+However, normal value-for-money opinions are allowed:
+
+- Great quality for the price.
+- Good product for this price.
+- The price is reasonable.
+
+============================================================
+AVAILABILITY
+============================================================
+
+Comments specifically about stock or availability are NOT_ALLOWED
+under 3.2.
+
+Examples:
+
+- Out of stock
+- When will it be available?
+- It is no longer available.
+- المنتج غير متوفر
+- متى سيتوفر؟
+
+General product wishes are allowed:
+
+- Hope it comes in more colors.
+- I wish there were more sizes.
+
+============================================================
+DAMAGE / MISSING ITEMS
+============================================================
+
+If the review complains that the purchased product arrived broken,
+damaged, or with missing parts/items, classify it as NOT_ALLOWED
+under 2.4.
+
+============================================================
+OTHER VIOLATIONS
+============================================================
+
+1.1:
+Promotional or advertising content.
+
+1.3:
+Hate speech or discriminatory content.
+
+1.4:
+Personal or sensitive information.
+
+2.1:
+Seller performance or seller reputation.
+
+2.2:
+Ordering or return experience.
+
+2.3:
+Shipping, packaging, or delivery issues.
+
+4.1:
+Conflict of interest, including reviews written by seller,
+competitor, employee, friend, family member, or business partner.
+
+4.2:
+Reviews posted in exchange for compensation, financial incentive,
+or other benefit.
+
+============================================================
+IMPORTANT CLASSIFICATION RULE
+============================================================
+
+If there is a clear guideline violation, choose NOT_ALLOWED.
+
+If there is no guideline violation, choose ALLOWED.
+
+Do not invent a violation simply because the review is negative.
+
+============================================================
+OUTPUT
+============================================================
+
+Return ONLY valid JSON:
+
+{{
+  "decision": "ALLOWED" or "NOT_ALLOWED",
+  "rule_id": "1.1" through "4.2",
+  "comment": "short explanation"
+}}
+
+Never return markdown.
+Never return additional fields.
+Never return NONE.
+Never return an invalid rule_id.
 
 Customer review:
 {review}
@@ -1070,9 +1156,9 @@ def call_model(
 
     prompt = build_prompt(review, language)
 
-    request_kwargs = {
-        "model": model,
-        "messages": [
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
             {
                 "role": "system",
                 "content": (
@@ -1086,9 +1172,8 @@ def call_model(
                 "content": prompt
             }
         ],
-        "temperature": 0,
-        "max_tokens": 350,
-        "response_format": {
+        temperature=0,
+        response_format={
             "type": "json_schema",
             "json_schema": {
                 "name": "review_moderation",
@@ -1096,14 +1181,7 @@ def call_model(
                 "schema": REVIEW_SCHEMA
             }
         }
-    }
-
-    # Keep low reasoning for the primary model where supported. The fallback
-    # model is left on its default reasoning configuration for compatibility.
-    if model == PRIMARY_MODEL:
-        request_kwargs["reasoning_effort"] = "low"
-
-    response = client.chat.completions.create(**request_kwargs)
+    )
 
     content = response.choices[0].message.content
 
@@ -1318,44 +1396,54 @@ def apply_allowed_rule(result, review, language):
 # ============================================================
 
 def call_adjudicator(review, language, first_result):
-    article = get_ai_policy_context()
 
     adjudicator_prompt = f"""
 You are the final quality-control reviewer for Noon Customer Reviews.
 
-Read the review carefully and independently verify the first classifier
-result against the official Noon policy below. Focus on meaning and context,
-not keyword matching.
-
-OFFICIAL NOON POLICY:
-{article}
-
-CLASSIFICATION LOGIC:
-- Product-focused personal experience, including normal negative criticism,
-  is ALLOWED unless another rule clearly applies.
-- Seller performance/reputation = 2.1 NOT_ALLOWED.
-- Ordering/return experience = 2.2 NOT_ALLOWED.
-- Shipping/packaging/delivery = 2.3 NOT_ALLOWED.
-- Damage/missing items = 2.4 NOT_ALLOWED.
-- Cheaper elsewhere / competitor price comparison = 3.1 NOT_ALLOWED.
-- Stock/store availability = 3.2 NOT_ALLOWED.
-- Promotional content, offensive/abusive/illegal language, hate/discrimination,
-  personal/sensitive information = applicable 1.x NOT_ALLOWED.
-- Conflict of interest = 4.1 NOT_ALLOWED.
-- Compensation/incentive = 4.2 NOT_ALLOWED.
-- Do not invent violations from isolated words.
+Review:
+{review}
 
 First classifier result:
 {json.dumps(first_result, ensure_ascii=False)}
 
-Customer review:
-{review}
+Re-evaluate the review independently using the Noon Customer Review
+guidelines below.
 
-If the first result is wrong, correct it. If there is no clear violation,
-choose ALLOWED. Choose the most direct rule for a violation.
+NORMAL PRODUCT CRITICISM = ALLOWED.
+Examples include bad product, poor quality, battery drains quickly,
+I don't like it, المنتج سيء, الجودة ضعيفة, البطارية بتخلص بسرعة.
+
+A genuinely offensive, abusive, vulgar, inappropriate, or distasteful
+expression = NOT_ALLOWED under 1.2.
+
+Clear violations from the Article:
+1.1 Promotional or advertising content.
+1.2 Offensive, abusive, inappropriate, vulgar, or distasteful language.
+1.3 Hate speech or discriminatory remarks.
+1.4 Personal or sensitive information.
+2.1 Seller performance or reputation.
+2.2 Ordering or return experiences.
+2.3 Shipping, packaging, or delivery speed.
+2.4 Product damage or missing items.
+3.1 Finding the product cheaper elsewhere or competitor pricing.
+3.2 Stock status, out-of-stock items, or store-level availability.
+4.1 Written by seller, competitor, employee, friend, family member, or business partner.
+4.2 Posted in exchange for compensation or financial incentive.
+
+Do not mark a review NOT_ALLOWED merely because it is negative,
+disappointed, critical, or poorly written. A simple mention of buying
+or ordering the product is not an order violation. A simple mention of
+a seller is not a seller violation unless actual seller feedback is given.
+A simple mention of price is not a violation unless it compares the
+product with a cheaper alternative or clearly falls under the pricing rule.
+A general wish for more colors or sizes is not a stock violation.
+
+If a clear Article violation exists, choose NOT_ALLOWED with the most
+direct rule. Otherwise choose ALLOWED.
 
 Return ONLY valid JSON with decision, rule_id, and comment.
-No markdown. No additional fields.
+No markdown.
+No additional fields.
 """
 
     client = get_openrouter_client()
@@ -1367,14 +1455,15 @@ No markdown. No additional fields.
                 "role": "system",
                 "content": (
                     "You are a final quality-control reviewer. "
-                    "Follow the supplied official Noon policy exactly. "
-                    "Understand the full review before deciding. Return JSON only."
+                    "Follow the Noon guidelines exactly and return JSON only."
                 )
             },
-            {"role": "user", "content": adjudicator_prompt}
+            {
+                "role": "user",
+                "content": adjudicator_prompt
+            }
         ],
         temperature=0,
-        max_tokens=350,
         response_format={
             "type": "json_schema",
             "json_schema": {
@@ -1399,30 +1488,14 @@ No markdown. No additional fields.
 
 def should_run_second_review(review, first_result):
     """
-    Use the second AI pass only for a semantic NOT_ALLOWED result that has
-    ambiguity. Deterministic violations are already finalized before the AI.
-    This keeps the accuracy safeguard while avoiding a second network call
-    for obvious removals.
+    Run a second AI pass only when the first AI says NOT_ALLOWED.
+
+    Clear violations are already handled deterministically before the AI.
+    For semantic cases, a second pass is valuable mainly to verify a removal
+    decision and reduce false positives, while ALLOWED product reviews stay
+    on the faster one-call path.
     """
-    if first_result.get("decision") != "NOT_ALLOWED":
-        return False
-
-    text = normalize_text(review)
-
-    # Strong semantic cues where a second independent read is useful.
-    ambiguous_cues = [
-        "seller", "البائع", "البايع",
-        "order", "ordered", "return", "refund", "طلب", "ارجاع", "استرجاع",
-        "delivery", "shipping", "package", "packaging", "توصيل", "شحن", "تغليف",
-        "price", "cheaper", "cheapest", "expensive", "سعر", "ارخص", "أرخص",
-        "stock", "available", "availability", "متوفر", "متاح", "مخزون",
-        "promo", "promotion", "advert", "discount", "coupon", "كود", "خصم",
-        "email", "phone", "address", "رقم", "ايميل", "بريد", "عنوان",
-        "competitor", "employee", "manufacturer", "paid", "free product",
-        "منافس", "موظف", "مصنع", "مدفوع", "فلوس", "منتج مجاني"
-    ]
-
-    return any(cue in text for cue in ambiguous_cues)
+    return first_result.get("decision") == "NOT_ALLOWED"
 
 
 # ============================================================
@@ -1477,6 +1550,7 @@ def evaluate_with_reliability(review, language):
             if is_access_denied_error(e):
                 continue
             if is_retryable_error(e):
+                time.sleep(1)
                 continue
 
     if first_result is None:
