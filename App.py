@@ -966,7 +966,7 @@ def parse_model_json(content):
     if content is None:
         raise ValueError("Empty model response.")
 
-    text = str(content).strip()
+    text = str(content).strip().lstrip("\ufeff")
 
     if not text:
         raise ValueError("Empty model response.")
@@ -1016,43 +1016,60 @@ def call_model(
     reasoning_effort=None
 ):
     client = get_openrouter_client()
-
     prompt = build_prompt(review, language)
 
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a strict Noon Customer Review moderation classifier. "
-                    "The supplied Noon Article rules are the only authority. "
-                    "Do not invent rules. Return the required JSON only."
-                )
-            },
-            {
-                "role": "user",
-                "content": prompt
-            }
-        ],
-        temperature=0,
-        max_tokens=180,
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "review_moderation",
-                "strict": True,
-                "schema": REVIEW_SCHEMA
-            }
-        }
-    )
+    last_error = None
 
-    content = response.choices[0].message.content
+    # Two attempts are used only when the model response itself is unusable.
+    # This prevents intermittent empty/truncated/non-JSON responses from
+    # reaching the user while keeping normal evaluations to one API call.
+    for attempt in range(2):
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a strict Noon Customer Review moderation classifier. "
+                            "The supplied Noon Article rules are the only authority. "
+                            "Return one compact valid JSON object only. "
+                            "Do not use markdown or additional text."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                temperature=0,
+                max_tokens=320 if attempt == 0 else 450,
+                response_format={"type": "json_object"}
+            )
 
-    if not content:
-        raise ValueError("Empty model response.")
+            message = response.choices[0].message
+            content = getattr(message, "content", None)
 
-    return parse_model_json(content)
+            if not content:
+                raise ValueError("Empty model response.")
+
+            return parse_model_json(content)
+
+        except Exception as e:
+            last_error = e
+            # Retry only malformed/empty model output. API/network errors
+            # should be handled by the outer fallback-model logic.
+            error_text = str(e).lower()
+            malformed = (
+                "invalid json" in error_text
+                or "empty model response" in error_text
+                or "could not safely interpret" in error_text
+            )
+            if attempt == 0 and malformed:
+                continue
+            raise last_error
+
+    raise last_error
 
 
 # ============================================================
@@ -1305,46 +1322,56 @@ A general wish for more colors or sizes is not a stock violation.
 If a clear Article violation exists, choose NOT_ALLOWED with the most
 direct rule. Otherwise choose ALLOWED.
 
-Return ONLY valid JSON with decision, rule_id, and comment.
-No markdown.
-No additional fields.
+Return ONLY a compact JSON object with decision, rule_id, and comment.
+No markdown. No additional fields. Keep the comment to 1 short sentence.
 """
 
     client = get_openrouter_client()
+    last_error = None
 
-    response = client.chat.completions.create(
-        model=PRIMARY_MODEL,
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "You are a final quality-control reviewer. "
-                    "Follow the Noon guidelines exactly and return JSON only."
-                )
-            },
-            {
-                "role": "user",
-                "content": adjudicator_prompt
-            }
-        ],
-        temperature=0,
-        max_tokens=180,
-        response_format={
-            "type": "json_schema",
-            "json_schema": {
-                "name": "review_adjudication",
-                "strict": True,
-                "schema": REVIEW_SCHEMA
-            }
-        }
-    )
+    for attempt in range(2):
+        try:
+            response = client.chat.completions.create(
+                model=PRIMARY_MODEL,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a final quality-control reviewer. "
+                            "Follow the Noon guidelines exactly and return one compact valid JSON object only."
+                        )
+                    },
+                    {
+                        "role": "user",
+                        "content": adjudicator_prompt
+                    }
+                ],
+                temperature=0,
+                max_tokens=320 if attempt == 0 else 450,
+                response_format={"type": "json_object"}
+            )
 
-    content = response.choices[0].message.content
+            message = response.choices[0].message
+            content = getattr(message, "content", None)
 
-    if not content:
-        raise ValueError("Empty adjudicator response.")
+            if not content:
+                raise ValueError("Empty adjudicator response.")
 
-    return validate_result(parse_model_json(content))
+            return validate_result(parse_model_json(content))
+
+        except Exception as e:
+            last_error = e
+            error_text = str(e).lower()
+            malformed = (
+                "invalid json" in error_text
+                or "empty adjudicator response" in error_text
+                or "could not safely interpret" in error_text
+            )
+            if attempt == 0 and malformed:
+                continue
+            raise last_error
+
+    raise last_error
 
 
 # ============================================================
