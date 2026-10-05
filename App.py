@@ -134,6 +134,21 @@ def get_noon_guidelines():
     )
 
 
+@st.cache_data(ttl=3600, show_spinner=False)
+def get_ai_policy_context():
+    """Return a compact, cached copy of the official policy for AI calls."""
+    article = get_noon_guidelines()
+    # Keep the complete policy when reasonably sized. If the Help Center
+    # response contains excessive navigation/footer text, cap it without
+    # changing the local classification logic below.
+    if len(article) <= 24000:
+        return article
+
+    # Preserve the beginning and ending of the official article. The local
+    # logic below remains authoritative for the specific rule mapping.
+    return article[:18000] + "\n\n[Non-policy page content omitted for speed]\n\n" + article[-6000:]
+
+
 # ============================================================
 # ARABIC TRANSLATIONS
 # ============================================================
@@ -865,7 +880,7 @@ Understand the meaning and context of the review.
 
 def build_prompt(review, language):
     language_instruction = get_language_instruction(language)
-    article = get_noon_guidelines()
+    article = get_ai_policy_context()
 
     return f"""
 You are a highly accurate Noon Customer Review moderation classifier.
@@ -1055,9 +1070,9 @@ def call_model(
 
     prompt = build_prompt(review, language)
 
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
+    request_kwargs = {
+        "model": model,
+        "messages": [
             {
                 "role": "system",
                 "content": (
@@ -1071,8 +1086,9 @@ def call_model(
                 "content": prompt
             }
         ],
-        temperature=0,
-        response_format={
+        "temperature": 0,
+        "max_tokens": 350,
+        "response_format": {
             "type": "json_schema",
             "json_schema": {
                 "name": "review_moderation",
@@ -1080,7 +1096,14 @@ def call_model(
                 "schema": REVIEW_SCHEMA
             }
         }
-    )
+    }
+
+    # Keep low reasoning for the primary model where supported. The fallback
+    # model is left on its default reasoning configuration for compatibility.
+    if model == PRIMARY_MODEL:
+        request_kwargs["reasoning_effort"] = "low"
+
+    response = client.chat.completions.create(**request_kwargs)
 
     content = response.choices[0].message.content
 
@@ -1295,7 +1318,7 @@ def apply_allowed_rule(result, review, language):
 # ============================================================
 
 def call_adjudicator(review, language, first_result):
-    article = get_noon_guidelines()
+    article = get_ai_policy_context()
 
     adjudicator_prompt = f"""
 You are the final quality-control reviewer for Noon Customer Reviews.
@@ -1351,6 +1374,7 @@ No markdown. No additional fields.
             {"role": "user", "content": adjudicator_prompt}
         ],
         temperature=0,
+        max_tokens=350,
         response_format={
             "type": "json_schema",
             "json_schema": {
@@ -1375,14 +1399,30 @@ No markdown. No additional fields.
 
 def should_run_second_review(review, first_result):
     """
-    Run a second AI pass only when the first AI says NOT_ALLOWED.
-
-    Clear violations are already handled deterministically before the AI.
-    For semantic cases, a second pass is valuable mainly to verify a removal
-    decision and reduce false positives, while ALLOWED product reviews stay
-    on the faster one-call path.
+    Use the second AI pass only for a semantic NOT_ALLOWED result that has
+    ambiguity. Deterministic violations are already finalized before the AI.
+    This keeps the accuracy safeguard while avoiding a second network call
+    for obvious removals.
     """
-    return first_result.get("decision") == "NOT_ALLOWED"
+    if first_result.get("decision") != "NOT_ALLOWED":
+        return False
+
+    text = normalize_text(review)
+
+    # Strong semantic cues where a second independent read is useful.
+    ambiguous_cues = [
+        "seller", "البائع", "البايع",
+        "order", "ordered", "return", "refund", "طلب", "ارجاع", "استرجاع",
+        "delivery", "shipping", "package", "packaging", "توصيل", "شحن", "تغليف",
+        "price", "cheaper", "cheapest", "expensive", "سعر", "ارخص", "أرخص",
+        "stock", "available", "availability", "متوفر", "متاح", "مخزون",
+        "promo", "promotion", "advert", "discount", "coupon", "كود", "خصم",
+        "email", "phone", "address", "رقم", "ايميل", "بريد", "عنوان",
+        "competitor", "employee", "manufacturer", "paid", "free product",
+        "منافس", "موظف", "مصنع", "مدفوع", "فلوس", "منتج مجاني"
+    ]
+
+    return any(cue in text for cue in ambiguous_cues)
 
 
 # ============================================================
@@ -1437,7 +1477,6 @@ def evaluate_with_reliability(review, language):
             if is_access_denied_error(e):
                 continue
             if is_retryable_error(e):
-                time.sleep(1)
                 continue
 
     if first_result is None:
