@@ -1173,6 +1173,7 @@ def call_model(
             }
         ],
         temperature=0,
+        max_tokens=300,
         response_format={
             "type": "json_schema",
             "json_schema": {
@@ -1464,6 +1465,7 @@ No additional fields.
             }
         ],
         temperature=0,
+        max_tokens=300,
         response_format={
             "type": "json_schema",
             "json_schema": {
@@ -1488,14 +1490,31 @@ No additional fields.
 
 def should_run_second_review(review, first_result):
     """
-    Run a second AI pass only when the first AI says NOT_ALLOWED.
-
-    Clear violations are already handled deterministically before the AI.
-    For semantic cases, a second pass is valuable mainly to verify a removal
-    decision and reduce false positives, while ALLOWED product reviews stay
-    on the faster one-call path.
+    Use a second AI pass only for NOT_ALLOWED results that contain a
+    policy-related signal. Clear deterministic violations never reach this
+    function. This keeps normal reviews on the fastest one-call path while
+    still double-checking semantic removal decisions.
     """
-    return first_result.get("decision") == "NOT_ALLOWED"
+    if first_result.get("decision") != "NOT_ALLOWED":
+        return False
+
+    text = normalize_text(review)
+
+    policy_signals = (
+        "seller", "البائع", "البايع",
+        "order", "ordered", "return", "refund", "cancel",
+        "طلب", "ارجاع", "استرجاع", "الغاء",
+        "delivery", "shipping", "package", "packaging",
+        "توصيل", "شحن", "تغليف",
+        "cheaper", "price", "سعر", "ارخص",
+        "stock", "available", "availability", "متوفر", "مخزون",
+        "promo", "discount", "coupon", "خصم", "كود",
+        "email", "phone", "address", "ايميل", "هاتف", "عنوان",
+        "competitor", "employee", "paid", "free product",
+        "منافس", "موظف", "مدفوع", "منتج مجاني"
+    )
+
+    return any(signal in text for signal in policy_signals)
 
 
 # ============================================================
@@ -1550,7 +1569,6 @@ def evaluate_with_reliability(review, language):
             if is_access_denied_error(e):
                 continue
             if is_retryable_error(e):
-                time.sleep(1)
                 continue
 
     if first_result is None:
