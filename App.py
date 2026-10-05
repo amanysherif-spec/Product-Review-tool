@@ -952,6 +952,60 @@ def friendly_api_error(error):
 
 
 # ============================================================
+# ROBUST JSON PARSER
+# ============================================================
+
+def parse_model_json(content):
+    """Parse model output safely, including occasional markdown fences.
+
+    OpenRouter/model responses can occasionally include a fenced JSON block
+    even when JSON output is requested. Never let that harmless formatting
+    difference break the moderation tool.
+    """
+
+    if content is None:
+        raise ValueError("Empty model response.")
+
+    text = str(content).strip()
+
+    if not text:
+        raise ValueError("Empty model response.")
+
+    # Normal JSON response.
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Remove common markdown fences.
+    cleaned = re.sub(r"^```(?:json)?\s*", "", text, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*```$", "", cleaned).strip()
+
+    if cleaned != text:
+        try:
+            return json.loads(cleaned)
+        except json.JSONDecodeError:
+            pass
+
+    # Last safe extraction: use the outermost JSON object if extra text
+    # was returned before/after it.
+    start = cleaned.find("{")
+    end = cleaned.rfind("}")
+
+    if start != -1 and end > start:
+        candidate = cleaned[start:end + 1]
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError(
+        "Model returned an invalid JSON response. "
+        "The tool could not safely interpret the model output."
+    )
+
+
+# ============================================================
 # MODEL CALL
 # ============================================================
 
@@ -998,7 +1052,7 @@ def call_model(
     if not content:
         raise ValueError("Empty model response.")
 
-    return json.loads(content)
+    return parse_model_json(content)
 
 
 # ============================================================
@@ -1290,7 +1344,7 @@ No additional fields.
     if not content:
         raise ValueError("Empty adjudicator response.")
 
-    return validate_result(json.loads(content))
+    return validate_result(parse_model_json(content))
 
 
 # ============================================================
