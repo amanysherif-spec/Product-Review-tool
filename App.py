@@ -3,7 +3,6 @@ import os
 import streamlit.components.v1 as components
 import json
 import re
-import time
 from openai import OpenAI
 
 
@@ -817,237 +816,47 @@ Understand the meaning and context of the review.
 # ============================================================
 
 def build_prompt(review, language):
+    """Compact policy prompt for the fast evaluation path."""
 
-    language_instruction = get_language_instruction(language)
+    if language == "Arabic":
+        language_instruction = "Return the comment in Arabic. Understand Arabic, Egyptian Arabic, English, and mixed text."
+    else:
+        language_instruction = "Return the comment in English. Understand English, Arabic, and mixed text."
 
     rules_text = "\n".join(
-        [
-            f"{rule_id}: {data['section']} -> {data['rule']}"
-            for rule_id, data in RULES.items()
-        ]
+        f"{rule_id}: {data['rule']}"
+        for rule_id, data in RULES.items()
     )
 
-    return f"""
-You are a strict Noon Customer Review moderation classifier.
-
-Your job is to determine whether the customer review is ALLOWED
-or NOT_ALLOWED according ONLY to the Noon Customer Reviews Article.
-Do not invent, expand, or substitute policy rules.
-
+    return f"""You are a strict Noon Customer Review moderator.
 {language_instruction}
-
-============================================================
-NOON CUSTOMER REVIEW GUIDELINES — ARTICLE SOURCE OF TRUTH
-============================================================
-
-The following policy is the only policy you may apply. The Article states
-that product reviews should focus solely on the customer's personal
-experience with the product purchased. The Article's prohibited categories
-are listed below. Do not add categories that are not supported by the Article.
-
+Use ONLY these rules:
 {rules_text}
 
-Article URL: https://help.noon.com/portal/en/kb/articles/product-review-guidelines
-
-============================================================
-IMPORTANT GENERAL PRINCIPLES
-============================================================
-
-1. Reviews should focus solely on the customer's personal
-   experience with the product purchased.
-
-2. Normal product criticism is allowed.
-
-Examples of ALLOWED normal criticism:
-
-- The product is bad.
-- The quality is poor.
-- The battery drains quickly.
-- The product is not useful.
-- I don't like the product.
-- The product disappointed me.
-- المنتج سيء
-- المنتج وحش
-- مش عاجبني المنتج
-- المنتج مش مفيد
-- البطارية بتخلص بسرعة
-- المنتج لم يعجبني
-
-These are opinions about the product and are NOT automatically
-offensive language.
-
-============================================================
-OFFENSIVE / INAPPROPRIATE LANGUAGE
-============================================================
-
-Any genuinely offensive, abusive, vulgar, inappropriate, or
-distasteful language must be classified as NOT_ALLOWED under 1.2.
-
-IMPORTANT: Words such as "disgusting", "gross", "vulgar", "fuck",
-"shit", and clear Arabic equivalents such as "مقرف", "قرف", "زبالة",
-"زفت", "وسخ", "خرا", or clear insults are NOT_ALLOWED under 1.2
-even when they are used to describe the product. Do not downgrade
-them to ordinary negative product feedback.
-
-This applies to both English and Arabic.
-
-Examples that MUST be NOT_ALLOWED:
-
-- disgusting product
-- This product is disgusting
-- The product is disgusting
-- What a disgusting product
-- fucking garbage
-- piece of shit
-- shit product
-- fuck this
-- fuck you
-
-Arabic examples that MUST be NOT_ALLOWED:
-
-- المنتج مقرف
-- منتج مقرف
-- المنتج زبالة
-- منتج زبالة
-- يا غبي
-- البائع غبي
-- المنتج وسخ
-- المنتج زفت
-- خرا
-- قرف
-- ألفاظ بذيئة أو مهينة أو غير لائقة
+CORE POLICY:
+- Product-focused personal experience is ALLOWED, including negative opinions such as bad product, poor quality, not useful, I don't like it, المنتج سيء, الجودة ضعيفة.
+- 1.1 promotional/advertising content = NOT_ALLOWED.
+- 1.2 offensive, abusive, vulgar, inappropriate or distasteful language = NOT_ALLOWED. Clear terms such as disgusting, gross, vulgar, fuck, shit, مقرف, زبالة, زفت, وسخ, خرا, and clear insults are not normal criticism.
+- 1.3 hate speech/discrimination = NOT_ALLOWED.
+- 1.4 personal/sensitive information = NOT_ALLOWED.
+- 2.1 seller performance/reputation = NOT_ALLOWED.
+- 2.2 ordering/return/refund experience = NOT_ALLOWED.
+- 2.3 shipping/packaging/delivery = NOT_ALLOWED.
+- 2.4 product arrived damaged/broken or missing items/parts = NOT_ALLOWED.
+- 3.1 finding the same product cheaper elsewhere / competitor price comparison = NOT_ALLOWED. Example: "Found it cheaper elsewhere".
+- 3.2 stock/availability comments = NOT_ALLOWED. Example: "Out of stock".
+- 4.1 conflict of interest = NOT_ALLOWED.
+- 4.2 compensation/free product/financial incentive for review = NOT_ALLOWED.
 
 IMPORTANT:
+Judge the COMPLETE meaning and context. Do not classify from an isolated keyword. A simple mention of price, seller, order, delivery, or product quality is not automatically a violation unless it expresses a prohibited type of feedback. Normal product criticism remains ALLOWED.
 
-Do not confuse ordinary negative product feedback with offensive
-language.
-
-For example:
-
-"The product is bad"
-"The quality is poor"
-"I don't like it"
-"المنتج سيء"
-
-must remain ALLOWED unless another guideline is violated.
-
-However, if the wording is genuinely vulgar, abusive, insulting,
-inappropriate, or distasteful according to normal language usage,
-classify it as NOT_ALLOWED under 1.2.
-
-Use contextual understanding, not only keyword matching.
-
-============================================================
-PRICING
-============================================================
-
-A review saying that the customer found the same product cheaper
-elsewhere is NOT_ALLOWED under 3.1.
-
-Examples:
-
-- Found it cheaper elsewhere
-- I found it cheaper in another store
-- Same product is cheaper somewhere else
-- لقيته ارخص في مكان تاني
-- وجدته بسعر ارخص
-
-These MUST be NOT_ALLOWED.
-
-However, normal value-for-money opinions are allowed:
-
-- Great quality for the price.
-- Good product for this price.
-- The price is reasonable.
-
-============================================================
-AVAILABILITY
-============================================================
-
-Comments specifically about stock or availability are NOT_ALLOWED
-under 3.2.
-
-Examples:
-
-- Out of stock
-- When will it be available?
-- It is no longer available.
-- المنتج غير متوفر
-- متى سيتوفر؟
-
-General product wishes are allowed:
-
-- Hope it comes in more colors.
-- I wish there were more sizes.
-
-============================================================
-DAMAGE / MISSING ITEMS
-============================================================
-
-If the review complains that the purchased product arrived broken,
-damaged, or with missing parts/items, classify it as NOT_ALLOWED
-under 2.4.
-
-============================================================
-OTHER VIOLATIONS
-============================================================
-
-1.1:
-Promotional or advertising content.
-
-1.3:
-Hate speech or discriminatory content.
-
-1.4:
-Personal or sensitive information.
-
-2.1:
-Seller performance or seller reputation.
-
-2.2:
-Ordering or return experience.
-
-2.3:
-Shipping, packaging, or delivery issues.
-
-4.1:
-Conflict of interest, including reviews written by seller,
-competitor, employee, friend, family member, or business partner.
-
-4.2:
-Reviews posted in exchange for compensation, financial incentive,
-or other benefit.
-
-============================================================
-IMPORTANT CLASSIFICATION RULE
-============================================================
-
-If there is a clear guideline violation, choose NOT_ALLOWED.
-
-If there is no guideline violation, choose ALLOWED.
-
-Do not invent a violation simply because the review is negative.
-
-============================================================
-OUTPUT
-============================================================
-
-Return ONLY valid JSON:
-
-{{
-  "decision": "ALLOWED" or "NOT_ALLOWED",
-  "rule_id": "1.1" through "4.2",
-  "comment": "short explanation"
-}}
-
-Never return markdown.
-Never return additional fields.
-Never return NONE.
-Never return an invalid rule_id.
+Return ONLY JSON with exactly: decision, rule_id, comment.
+decision must be ALLOWED or NOT_ALLOWED.
+rule_id must be one of: {', '.join(RULES.keys())}.
 
 Customer review:
-{review}
-"""
+{review}"""
 
 
 # ============================================================
@@ -1173,7 +982,7 @@ def call_model(
             }
         ],
         temperature=0,
-        max_tokens=300,
+        max_tokens=180,
         response_format={
             "type": "json_schema",
             "json_schema": {
@@ -1465,7 +1274,7 @@ No additional fields.
             }
         ],
         temperature=0,
-        max_tokens=300,
+        max_tokens=180,
         response_format={
             "type": "json_schema",
             "json_schema": {
@@ -1489,12 +1298,10 @@ No additional fields.
 # ============================================================
 
 def should_run_second_review(review, first_result):
-    """
-    Use a second AI pass only for NOT_ALLOWED results that contain a
-    policy-related signal. Clear deterministic violations never reach this
-    function. This keeps normal reviews on the fastest one-call path while
-    still double-checking semantic removal decisions.
-    """
+    """Run a second AI pass only when an AI removal decision has a
+    meaningful policy signal. Clear deterministic violations never reach
+    this function, and ordinary ALLOWED reviews stay on one AI call."""
+
     if first_result.get("decision") != "NOT_ALLOWED":
         return False
 
@@ -1506,12 +1313,13 @@ def should_run_second_review(review, first_result):
         "طلب", "ارجاع", "استرجاع", "الغاء",
         "delivery", "shipping", "package", "packaging",
         "توصيل", "شحن", "تغليف",
-        "cheaper", "price", "سعر", "ارخص",
+        "cheaper", "price", "expensive", "سعر", "ارخص",
         "stock", "available", "availability", "متوفر", "مخزون",
         "promo", "discount", "coupon", "خصم", "كود",
         "email", "phone", "address", "ايميل", "هاتف", "عنوان",
-        "competitor", "employee", "paid", "free product",
-        "منافس", "موظف", "مدفوع", "منتج مجاني"
+        "competitor", "employee", "manufacturer", "paid", "free product",
+        "منافس", "موظف", "مصنع", "مدفوع", "فلوس", "منتج مجاني",
+        "disgusting", "vulgar", "fuck", "shit", "مقرف", "زباله", "زبالة", "زفت", "وسخ", "خرا"
     )
 
     return any(signal in text for signal in policy_signals)
