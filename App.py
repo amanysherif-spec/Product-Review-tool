@@ -4,7 +4,7 @@ import streamlit.components.v1 as components
 import json
 import re
 import time
-from groq import Groq
+from openai import OpenAI
 
 
 # ============================================================
@@ -23,7 +23,7 @@ st.set_page_config(
 # ============================================================
 
 PRIMARY_MODEL = "openai/gpt-oss-120b"
-FALLBACK_MODEL = "openai/gpt-oss-20b"
+FALLBACK_MODEL = "google/gemini-3.8-flash"
 
 ARTICLE_URL = "https://help.noon.com/portal/en/kb/articles/product-review-guidelines"
 
@@ -1081,25 +1081,32 @@ REVIEW_SCHEMA = {
 
 
 # ============================================================
-# GROQ CLIENT
+# OPENROUTER CLIENT
 # ============================================================
 
 @st.cache_resource(show_spinner=False)
-def get_groq_client():
-    api_key = os.getenv("GROQ_API_KEY")
+def get_openrouter_client():
+    api_key = os.getenv("OPENROUTER_API_KEY")
 
     if not api_key:
         try:
-            api_key = st.secrets["GROQ_API_KEY"]
+            api_key = st.secrets["OPENROUTER_API_KEY"]
         except Exception:
             api_key = None
 
     if not api_key:
         raise RuntimeError(
-            "GROQ_API_KEY is not configured."
+            "OPENROUTER_API_KEY is not configured."
         )
 
-    return Groq(api_key=api_key)
+    return OpenAI(
+        api_key=api_key,
+        base_url="https://openrouter.ai/api/v1",
+        default_headers={
+            "HTTP-Referer": ARTICLE_URL,
+            "X-Title": "Noon Product Review Moderation Tool",
+        },
+    )
 
 
 # ============================================================
@@ -1127,10 +1134,11 @@ def is_retryable_error(error):
 def friendly_api_error(error):
     if is_access_denied_error(error):
         return (
-            "Groq API access was denied (HTTP 403). This is a network/service "
-            "access issue, not a review-classification issue. The tool will not "
-            "guess an ALLOWED result when the AI is unavailable. Please check "
-            "Streamlit Cloud/network access to api.groq.com and try again."
+            "OpenRouter API access was denied (HTTP 403). This is a "
+            "network/service access issue, not a review-classification issue. "
+            "The tool will not guess an ALLOWED result when the AI is unavailable. "
+            "Please check the OPENROUTER_API_KEY and Streamlit Cloud/network "
+            "access to openrouter.ai, then try again."
         )
 
     return str(error)
@@ -1146,19 +1154,19 @@ def call_model(
     model,
     reasoning_effort=None
 ):
-    client = get_groq_client()
+    client = get_openrouter_client()
 
     prompt = build_prompt(review, language)
 
-    kwargs = {
-        "model": model,
-        "messages": [
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
             {
                 "role": "system",
                 "content": (
-                    "You are a strict Noon Customer Review "
-                    "moderation classifier. Follow the supplied "
-                    "guidelines exactly. Return the required JSON only."
+                    "You are a strict Noon Customer Review moderation classifier. "
+                    "The supplied Noon Article rules are the only authority. "
+                    "Do not invent rules. Return the required JSON only."
                 )
             },
             {
@@ -1166,8 +1174,8 @@ def call_model(
                 "content": prompt
             }
         ],
-        "temperature": 0,
-        "response_format": {
+        temperature=0,
+        response_format={
             "type": "json_schema",
             "json_schema": {
                 "name": "review_moderation",
@@ -1175,12 +1183,7 @@ def call_model(
                 "schema": REVIEW_SCHEMA
             }
         }
-    }
-
-    if reasoning_effort:
-        kwargs["reasoning_effort"] = reasoning_effort
-
-    response = client.chat.completions.create(**kwargs)
+    )
 
     content = response.choices[0].message.content
 
@@ -1445,7 +1448,7 @@ No markdown.
 No additional fields.
 """
 
-    client = get_groq_client()
+    client = get_openrouter_client()
 
     response = client.chat.completions.create(
         model=PRIMARY_MODEL,
@@ -1463,7 +1466,6 @@ No additional fields.
             }
         ],
         temperature=0,
-        reasoning_effort="low",
         response_format={
             "type": "json_schema",
             "json_schema": {
@@ -1531,7 +1533,7 @@ def evaluate_with_reliability(review, language):
        against the structured Article.
     3) A second AI adjudication is used only for ambiguous/potentially
        policy-related cases.
-    4) If Groq is unavailable, NEVER invent an ALLOWED result.
+    4) If OpenRouter is unavailable, NEVER invent an ALLOWED result.
     """
 
     hard_rule = detect_hard_rules(review)
@@ -1565,8 +1567,8 @@ def evaluate_with_reliability(review, language):
             break
         except Exception as e:
             errors.append(e)
-            # Do not waste retries on a network 403 by immediately repeating
-            # the same request. Try the fallback model once instead.
+            # Do not repeat the same model after a network/service 403.
+            # Try the configured fallback model once instead.
             if is_access_denied_error(e):
                 continue
             if is_retryable_error(e):
