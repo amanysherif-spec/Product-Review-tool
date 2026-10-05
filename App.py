@@ -1,107 +1,96 @@
-    decision = result["decision"]
-    rule_id = result["rule_id"]
-    comment = result["comment"]
-
-    if decision == "ALLOWED":
-        decision_text = (
-            "✅ Allowed — it should not be removed."
-        )
-    else:
-        decision_text = (
-            "❌ Not allowed — it should be removed"
-        )
-
-    if language == "Arabic":
-
-        section_text = ARABIC_SECTIONS[
-            RULES[rule_id]["section"]
-        ]
-
-        rule_text = ARABIC_RULES[
-            rule_id
-        ]
-
-        decision_label = "Decision:"
-        section_label = "Main Guideline Section:"
-        rule_label = "Specific Sub-rule:"
-        comment_label = "Comment:"
-
-    else:
-
-        section_text = RULES[
-            rule_id
-        ]["section"]
-
-        rule_text = RULES[
-            rule_id
-        ]["rule"]
-
-        decision_label = "Decision:"
-        section_label = "Main Guideline Section:"
-        rule_label = "Specific Sub-rule:"
-        comment_label = "Comment:"
-
-
-    st.markdown(
-        f"""
-**{decision_label}** {decision_text}
-
-**{section_label}** {section_text}
-
-**{rule_label}** {rule_text}
-
-**{comment_label}** {comment}
-"""
-    )
-
-
-    # --------------------------------------------------------
-    # COPY COMMENT
-    # --------------------------------------------------------
-
-    copy_text = comment.replace("'", "\\'").replace("\n", "\\n")
-
-    components.html(
-        f"""
-        <script>
-        function copyComment() {{
-            navigator.clipboard.writeText('{copy_text}');
-        }}
-        </script>
-
-        <button
-            onclick="copyComment()"
-            style="
-                padding: 8px 16px;
-                border-radius: 6px;
-                border: 1px solid #ccc;
-                background: white;
-                cursor: pointer;
-                font-size: 14px;
-            "
-        >
-            📋 Copy Comment
-        </button>
-        """,
-        height=50
-    )
+import streamlit as st
+import os
+import streamlit.components.v1 as components
+import json
+import re
+import time
+from groq import Groq
 
 
 # ============================================================
-# GUIDELINES LINK
+# PAGE CONFIG
 # ============================================================
 
-st.markdown(
-    f"""
-    <div style="margin-top: 20px;">
-        <a
-            href="{ARTICLE_URL}"
-            target="_blank"
-            rel="noopener noreferrer"
-        >
-            Noon Customer Reviews Guidelines
-        </a>
-    </div>
-    """,
-    unsafe_allow_html=True
+st.set_page_config(
+    page_title="Product Review Moderation Tool",
+    page_icon="🛡️",
+    layout="centered"
 )
+
+
+# ============================================================
+# MODELS
+# ============================================================
+
+PRIMARY_MODEL = "openai/gpt-oss-120b"
+FALLBACK_MODEL = "openai/gpt-oss-20b"
+
+ARTICLE_URL = "https://help.noon.com/portal/en/kb/articles/product-review-guidelines"
+
+
+# ============================================================
+# NOON CUSTOMER REVIEW GUIDELINES
+# ============================================================
+
+RULES = {
+    "1.1": {
+        "section": "Community Guideline Violations",
+        "rule": "Promotional or advertising content",
+    },
+    "1.2": {
+        "section": "Community Guideline Violations",
+        "rule": "Offensive, abusive, inappropriate, vulgar, or distasteful language",
+    },
+    "1.3": {
+        "section": "Community Guideline Violations",
+        "rule": "Hate speech or discriminatory content",
+    },
+    "1.4": {
+        "section": "Community Guideline Violations",
+        "rule": "Personal or sensitive information",
+    },
+
+    "2.1": {
+        "section": "Seller, Order, or Shipping Feedback",
+        "rule": "Seller performance or reputation",
+    },
+    "2.2": {
+        "section": "Seller, Order, or Shipping Feedback",
+        "rule": "Ordering or return experience",
+    },
+    "2.3": {
+        "section": "Seller, Order, or Shipping Feedback",
+        "rule": "Shipping, packaging, or delivery",
+    },
+    "2.4": {
+        "section": "Seller, Order, or Shipping Feedback",
+        "rule": "Product damage or missing items",
+    },
+
+    "3.1": {
+        "section": "Comments About Pricing or Availability",
+        "rule": "Finding the product cheaper elsewhere",
+    },
+    "3.2": {
+        "section": "Comments About Pricing or Availability",
+        "rule": "Stock status or availability",
+    },
+
+    "4.1": {
+        "section": "Conflicts of Interest & Anti-Manipulation",
+        "rule": "Conflict of interest",
+    },
+    "4.2": {
+        "section": "Conflicts of Interest & Anti-Manipulation",
+        "rule": "Compensation or financial incentive",
+    },
+}
+
+
+# ============================================================
+# ARABIC TRANSLATIONS
+# ============================================================
+
+ARABIC_SECTIONS = {
+    "Community Guideline Violations":
+        "مخالفات إرشادات المجتمع",
