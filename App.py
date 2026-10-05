@@ -57,60 +57,81 @@ RULES = {
 # LIVE NOON ARTICLE LOADER
 # ============================================================
 
-class _NoonArticleParser(HTMLParser):
-    """Small dependency-free HTML-to-text parser for the Noon article."""
-
-    def __init__(self):
-        super().__init__()
-        self.parts = []
-        self.skip_depth = 0
-
-    def handle_starttag(self, tag, attrs):
-        tag = tag.lower()
-        if tag in {"script", "style", "noscript", "svg"}:
-            self.skip_depth += 1
-        elif self.skip_depth == 0 and tag in {"h1", "h2", "h3", "h4", "p", "li", "br"}:
-            self.parts.append("\n")
-
-    def handle_endtag(self, tag):
-        tag = tag.lower()
-        if tag in {"script", "style", "noscript", "svg"} and self.skip_depth:
-            self.skip_depth -= 1
-        elif self.skip_depth == 0 and tag in {"h1", "h2", "h3", "h4", "p", "li"}:
-            self.parts.append("\n")
-
-    def handle_data(self, data):
-        if self.skip_depth == 0 and data.strip():
-            self.parts.append(data)
-
-
 @st.cache_data(ttl=3600, show_spinner=False)
 def get_noon_guidelines():
-    """Fetch and cache the official Noon Product Review Guidelines for 1 hour."""
-    try:
-        response = requests.get(
-            ARTICLE_URL,
-            timeout=12,
-            headers={"User-Agent": "Mozilla/5.0 Noon Product Review Moderation Tool"},
-        )
-        response.raise_for_status()
-    except Exception as exc:
-        raise RuntimeError(
-            "Unable to load the official Noon Product Review Guidelines. "
-            "Please try again. The tool will not classify a review without the policy source."
-        ) from exc
+    """
+    Load the official Noon Product Review Guidelines.
 
-    parser = _NoonArticleParser()
-    parser.feed(response.text)
-    text = " ".join(" ".join(parser.parts).split())
+    Direct access is tried first. Some hosting environments may receive a
+    protected/empty HTML response from the Noon help center, so a text-reader
+    fallback is used only when direct access cannot be parsed. The policy
+    itself still comes from the official Noon article URL.
+    """
 
-    if len(text) < 500 or "Product Review Guidelines" not in text:
-        raise RuntimeError(
-            "The Noon Product Review Guidelines page could not be read correctly. "
-            "Please try again."
-        )
+    urls = [
+        ARTICLE_URL,
+        f"https://r.jina.ai/{ARTICLE_URL}",
+    ]
 
-    return text[:50000]
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 Chrome/154.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.8",
+        "Accept-Language": "en-US,en;q=0.9",
+    }
+
+    errors = []
+
+    for url in urls:
+        try:
+            response = requests.get(
+                url,
+                timeout=15,
+                headers=headers,
+                allow_redirects=True,
+            )
+            response.raise_for_status()
+
+            raw = response.text or ""
+
+            # Jina returns clean text. For the direct Noon HTML response,
+            # strip tags without depending on BeautifulSoup.
+            if "r.jina.ai/" in url:
+                text = raw
+            else:
+                raw = re.sub(r"<script[^>]*>.*?</script>", " ", raw, flags=re.I | re.S)
+                raw = re.sub(r"<style[^>]*>.*?</style>", " ", raw, flags=re.I | re.S)
+                raw = re.sub(r"<noscript[^>]*>.*?</noscript>", " ", raw, flags=re.I | re.S)
+                raw = re.sub(r"<[^>]+>", " ", raw)
+                text = raw
+
+            # Decode common HTML entities and normalize whitespace.
+            import html as _html
+            text = _html.unescape(text)
+            text = re.sub(r"\s+", " ", text).strip()
+
+            required_markers = [
+                "Product Review Guidelines",
+                "Seller, Order, or Shipping Feedback",
+                "Comments About Pricing or Availability",
+                "Conflicts of Interest",
+            ]
+
+            if len(text) >= 1000 and all(marker.lower() in text.lower() for marker in required_markers):
+                return text[:50000]
+
+            errors.append(f"Invalid policy content from {url}")
+
+        except Exception as exc:
+            errors.append(f"{url}: {exc}")
+
+    raise RuntimeError(
+        "The Noon Product Review Guidelines could not be loaded. "
+        "Please try again. The tool will not classify a review without "
+        "a valid copy of the official policy."
+    )
 
 
 # ============================================================
